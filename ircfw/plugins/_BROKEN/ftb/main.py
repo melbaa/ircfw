@@ -1,44 +1,47 @@
 import ircfw.parse as parse
 
+
 class plugin():
-  def __init__(self, bot):
-    print('plugin' ,self.name_and_aliases(), 'started')
-    self.bot = bot
 
-  def test(self):
-    return True
-  
-  def help(self):
-    return "ftb <number> [<from base> [<to base>]]; converts <number> from base <from base> to <to base>, skip <from base> and 10 is assumed, skip <to base> and 16 is assumed, you can skip both. min base = 2, max base = 36"
-    
-  def name_and_aliases(self):
-    return ["ftb"]
-  
-  def use(self,rawcommand):
-    if not len(rawcommand):
-        return
-    result = []
-    number, rawcommand = parse.get_word(rawcommand)
-    if len(rawcommand):
-        from_base, rawcommand = parse.get_word(rawcommand)
+    def __init__(self, bot):
+        print('plugin', self.name_and_aliases(), 'started')
+        self.bot = bot
+
+    def test(self):
+        return True
+
+    def help(self):
+        return "ftb <number> [<from base> [<to base>]]; converts <number> from base <from base> to <to base>, skip <from base> and 10 is assumed, skip <to base> and 16 is assumed, you can skip both. min base = 2, max base = 36"
+
+    def name_and_aliases(self):
+        return ["ftb"]
+
+    def use(self, rawcommand):
+        if not len(rawcommand):
+            return
+        result = []
+        number, rawcommand = parse.get_word(rawcommand)
         if len(rawcommand):
-            to_base, rawcommand = parse.get_word(rawcommand)
-            result = ftb_impl(number, from_base, to_base)
-        else: 
-            """
-            a number and a base given, assume number is 
-            decimal and convert to base
-            """
-            to_base = from_base
-            result = ftb_impl(numstr = number, to_base = to_base)
+            from_base, rawcommand = parse.get_word(rawcommand)
+            if len(rawcommand):
+                to_base, rawcommand = parse.get_word(rawcommand)
+                result = ftb_impl(number, from_base, to_base)
+            else:
+                """
+                a number and a base given, assume number is 
+                decimal and convert to base
+                """
+                to_base = from_base
+                result = ftb_impl(numstr=number, to_base=to_base)
 
-    else: #only number given, convert it to hex
-        result = ftb_impl(number)
+        else:  # only number given, convert it to hex
+            result = ftb_impl(number)
 
-    result = ''.join(result) #convert the list to a string
-    return result
+        result = ''.join(result)  # convert the list to a string
+        return result
 
-def ftb_impl(numstr, from_base = '10', to_base = '16'):
+
+def ftb_impl(numstr, from_base='10', to_base='16'):
     """
     bases are from 2 to 36
     """
@@ -49,12 +52,10 @@ def ftb_impl(numstr, from_base = '10', to_base = '16'):
     E2TO36 = list('supported bases are >= 2 and <= 36')
     MAXBASE = 36
     MINBASE = 2
-    numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A'
-               ,'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'
-               , 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U'
-               ,'V', 'W', 'X', 'Y', 'Z']
-    try: 
-        #handle numstr sign
+    numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+               'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+    try:
+            # handle numstr sign
         numstrsign = 0
         if numstr[0] == '+':
             numstrsign = 1
@@ -63,8 +64,7 @@ def ftb_impl(numstr, from_base = '10', to_base = '16'):
 
         if numstrsign in (1, -1):
             numstr = numstr[1:]
-        #end of handle numstr sign
-
+        # end of handle numstr sign
 
         if from_base[0] == '+':
             from_base = from_base[1:]
@@ -75,15 +75,11 @@ def ftb_impl(numstr, from_base = '10', to_base = '16'):
                 return EFBDEC
         from_base = int(from_base)
 
-
-
-
         for char in numstr:
             if not (str.isalnum(char) and char != '.'):
                 return ENONALNUM
             if int(char, MAXBASE) >= from_base:
                 return ENOTINFB
-
 
         if to_base[0] == '+':
             to_base = to_base[1:]
@@ -105,8 +101,6 @@ def ftb_impl(numstr, from_base = '10', to_base = '16'):
             result = [numdec % to_base] + result
             numdec = numdec // to_base
 
-
-
         for i in range(len(result)):
             char_idx = result[i]
             result[i] = numbers[result[i]]
@@ -116,5 +110,3 @@ def ftb_impl(numstr, from_base = '10', to_base = '16'):
         return result
     except UnicodeEncodeError as err:
         return list(str(err))
-
-

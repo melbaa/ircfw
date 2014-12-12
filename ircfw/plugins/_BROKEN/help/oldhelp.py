@@ -1,4 +1,5 @@
-DEAD CODE :)
+# DEAD CODE :)
+
 
 def help(self):
     self.trailing = self.trailing.strip()
@@ -37,7 +38,7 @@ def help(self):
     """
     if os.path.isfile(path):
       with open(path) as f:
-        #what we can expect
+        # what we can expect
         KEY, VAL, LF = 1, 2, 3
         n = KEY
         key = None
@@ -58,7 +59,7 @@ def help(self):
               key = None
             else:
               raise Exception('u should never reach this')
-        #the file has ended but we are still expecting a value
+        # the file has ended but we are still expecting a value
         if n != KEY:
           raise Exception(key + ' is undefined in ' + path)
     else:

@@ -1,9 +1,11 @@
 import re
 
+
 class plugin():
-  def __init__(self, bot):
-    
-    self.math_pi = """
+
+    def __init__(self, bot):
+
+        self.math_pi = """
     3.
     14159265358979323846264338327950288419716939937510
     58209749445923078164062862089986280348253421170679
@@ -26,19 +28,17 @@ class plugin():
     59825349042875546873115956286388235378759375195778
     18577805321712268066130019278766111959092164201989
     """
-    self.math_pi = re.sub(r'\s+', '', self.math_pi)
-    print('plugin' ,self.name_and_aliases(), 'started')
-    
-  def test(self):
-    return True
-  
-  def help(self):
-    return "this plugin returns pi"
-    
-  def name_and_aliases(self):
-    return ["pi"]
-  
-  def use(self,rawcommand):
-    return self.math_pi
-  
-  
+        self.math_pi = re.sub(r'\s+', '', self.math_pi)
+        print('plugin', self.name_and_aliases(), 'started')
+
+    def test(self):
+        return True
+
+    def help(self):
+        return "this plugin returns pi"
+
+    def name_and_aliases(self):
+        return ["pi"]
+
+    def use(self, rawcommand):
+        return self.math_pi

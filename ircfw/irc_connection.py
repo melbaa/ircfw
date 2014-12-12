@@ -9,6 +9,7 @@ import ircfw.unparse
 
 
 class irc_connection:
+
     """
     the class is meant to be used as follows:
     - caller creates an instance, which tries to register with server
@@ -22,15 +23,9 @@ class irc_connection:
     sends bytes over the wire
     """
 
-    def __init__(self
-    , host = 'irc.d-t-net.de'
-    , port = 6667
-    , use_ssl = False
-    , nicks = [("nick1", 'pass1'),('nick2', 'pass2')] #list of (nick, pass) tuples
-    , irc_password = ''
-    , channels = ('#testschan',)
-    ):
-
+    def __init__(self, host='irc.d-t-net.de', port=6667, use_ssl=False, nicks=[("nick1", 'pass1'), ('nick2', 'pass2')]  # list of (nick, pass) tuples
+                 , irc_password='', channels=('#testschan',)
+                 ):
         """the max num of bytes for a command is 512, including
               the \r\n at the end, thus 510 for command and params only.
               It is lowered on rpl_whoreply (actually possible with rpl_welcome
@@ -53,10 +48,8 @@ class irc_connection:
         self.irc_port = port
         self.use_ssl = use_ssl
 
-        self.irc_socket = self.create_socket(self.irc_host
-            , self.irc_port
-            , self.use_ssl
-        )
+        self.irc_socket = self.create_socket(self.irc_host, self.irc_port, self.use_ssl
+                                             )
         self.irc_socket.setblocking(0)
 
         """
@@ -70,15 +63,12 @@ class irc_connection:
         """
         self._send_queue = bytearray()
 
-
-
         """
         server registration is a mess. see irc_registration.graphml
         """
         if len(self.irc_password):
             self.queue_reply("PASS " + self.irc_password)
         self.try_nick()
-
 
     def read(self):
         """
@@ -90,9 +80,9 @@ class irc_connection:
         """
         def find_end_line(bytebuf):
             newlinesz = 2
-            foundpos = bytebuf.find(b'\r\n') #strict ircd impl
+            foundpos = bytebuf.find(b'\r\n')  # strict ircd impl
             if foundpos == -1:
-                foundpos = bytebuf.find(b'\n') #lame impl
+                foundpos = bytebuf.find(b'\n')  # lame impl
                 newlinesz -= 1
             return newlinesz, foundpos
 
@@ -105,20 +95,18 @@ class irc_connection:
         if len(more):
             self._recv_queue += more
         else:
-            raise socket.error("socket connection broken") #socket closed??
+            raise socket.error("socket connection broken")  # socket closed??
 
         newlinesz, foundpos = find_end_line(self._recv_queue)
         while foundpos != -1:
             newline = self._recv_queue[:foundpos]
-            self._recv_queue = self._recv_queue[foundpos+newlinesz:]
+            self._recv_queue = self._recv_queue[foundpos + newlinesz:]
             #self.logger.info("getline: " + str(newline))
-            #yield newline.decode('utf-8', 'ignore') #note the yield
+            # yield newline.decode('utf-8', 'ignore') #note the yield
 
             self._local_handlers(newline)
             yield newline
             newlinesz, foundpos = find_end_line(self._recv_queue)
-
-
 
     def write(self):
         """
@@ -130,7 +118,7 @@ class irc_connection:
             self.logger.info('had nothing to write')
             return 0
 
-        #self.mysendall(self._send_queue)
+        # self.mysendall(self._send_queue)
         self.logger.info('trying to send: ' + str(self._send_queue))
         c = 0
         if isinstance(self.irc_socket, ssl.SSLSocket):
@@ -141,39 +129,38 @@ class irc_connection:
         self.logger.info('sent: ' + str(self._send_queue[:c]))
         self._send_queue = self._send_queue[c:]
         self.logger.info('remaining: ' + str(self._send_queue))
-        #time.sleep(3)
+        # time.sleep(3)
         remaining = len(self._send_queue)
         return remaining
 
-
-
-    def create_socket(self, host, port, ssl_conn, timeout = None):
+    def create_socket(self, host, port, ssl_conn, timeout=None):
         msg = "getaddrinfo returns an empty list"
         try:
-                for res in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
-                        af, socktype, proto, canonname, sa = res
-                        sock = None
-                        try:
-                                sock = socket.socket(af, socktype, proto)
-                                if ssl_conn:
-                                        sock = ssl.wrap_socket(sock, suppress_ragged_eofs=True, do_handshake_on_connect=True)
-                                if timeout is not None:
-                                        sock.settimeout(timeout) #raises SSLError with ssl sockets :(
-                                sock.connect(sa)
-                                return sock
-                        except (socket.error, ssl.SSLError):
-                                self.logger.info(traceback.format_exc())
-                                if sock is not None:
-                                        sock.close()
-                                """
+            for res in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+                af, socktype, proto, canonname, sa = res
+                sock = None
+                try:
+                    sock = socket.socket(af, socktype, proto)
+                    if ssl_conn:
+                        sock = ssl.wrap_socket(
+                            sock, suppress_ragged_eofs=True, do_handshake_on_connect=True)
+                    if timeout is not None:
+                        sock.settimeout(
+                            timeout)  # raises SSLError with ssl sockets :(
+                    sock.connect(sa)
+                    return sock
+                except (socket.error, ssl.SSLError):
+                    self.logger.info(traceback.format_exc())
+                    if sock is not None:
+                        sock.close()
+                    """
                                 sometimes we get unexpected eof (8)
                                 #http://tools.ietf.org/html/rfc2246#section-7.2.1
                                 it's because of unproper shutdown
                                 """
         except socket.gaierror:
-                self.logger.info(traceback.format_exc())
+            self.logger.info(traceback.format_exc())
         raise RuntimeError("couldn't connect :(")
-
 
     def fileno(self):
         return self.irc_socket.fileno()
@@ -194,14 +181,14 @@ class irc_connection:
         raise RuntimeError("why are you here?")
 
     def try_nick(self):
-        nick,passwd = self.current_nick_pass()
+        nick, passwd = self.current_nick_pass()
         self.queue_reply("NICK " + nick)
         self.queue_reply("USER melba 8 * :surprise! meh.")
 
     def nick_rotate(self):
         self._current_nick += 1
 
-    def queue_reply(self, msg, option = 'truncate'):
+    def queue_reply(self, msg, option='truncate'):
         """
         queue a raw message (in unicode) for sending to the server.
         here we utf8 encode the message
@@ -212,7 +199,7 @@ class irc_connection:
         raise - raise an exception if len(msg) > BUFSIZE
         """
 
-        #reply to server
+        # reply to server
         msgbytes = msg.encode('utf-8')
 
         if option == 'raise' and len(msgbytes) > self.BUFSIZE:
@@ -238,10 +225,7 @@ class irc_connection:
         self._send_queue += binmsg
         self._send_queue += b'\r\n'
 
-
-
     def _local_handlers(self, rawline):
-
         """
             tuka da  ima handleri za rpl_welcome i tn. zaradi bufsize????
             i ostanalite neshta ot command.py, zaeti nikove, ghosts
@@ -254,7 +238,7 @@ class irc_connection:
         elif command_bin == const.RPL_WHOREPLY:
             self.on_rpl_whoreply(params)
         elif command_bin == const.NOTICE:
-            self.on_notice(sender,params,trailing)
+            self.on_notice(sender, params, trailing)
         elif command_bin == const.ERR_NOSUCHNICK:
             self.on_err_nosuchnick(params)
         elif command_bin == const.ERR_UNAVAILRESOURCE:
@@ -263,8 +247,8 @@ class irc_connection:
             self.on_err_nicknameinuse()
 
     def on_rpl_welcome(self):
-        #if we supplied passwords we will have to wait for a reply from nickserv
-        #and join channels later else we can join right away
+        # if we supplied passwords we will have to wait for a reply from nickserv
+        # and join channels later else we can join right away
         nick, passwd = self.current_nick_pass()
         if len(passwd):
             #self.privmsg("NickServ", "IDENTIFY " + passwd)
@@ -278,32 +262,31 @@ class irc_connection:
     def on_rpl_whoreply(self, cmd_params):
         if self.current_nick_pass()[0] == cmd_params[0]:
             sub = 0
-            sub += 1 #:
-            sub += len(cmd_params[0]) #nick
-            sub += 1 #!
-            sub += len(cmd_params[2]) #userid
-            sub += 1 #@
-            sub += len(cmd_params[3]) #host
-            sub += 1 #<space>
+            sub += 1  # :
+            sub += len(cmd_params[0])  # nick
+            sub += 1  # !
+            sub += len(cmd_params[2])  # userid
+            sub += 1  # @
+            sub += len(cmd_params[3])  # host
+            sub += 1  # <space>
             self.BUFSIZE -= sub
             self.logger.info("on_rpl_whoreply BUFSIZE is now %s", self.BUFSIZE)
 
-
     def on_notice(self, sender, params, trailing):
         if len(sender) >= 2 \
-            and sender[0] == "NickServ" \
-            and params[0] == self.current_nick_pass()[0] \
-            and trailing.find('You are now identified for') != -1:
-                #join channels
-                for chan in self.channels:
-                        self.join_chan(chan)
-                self.queue_reply("WHO " + self.current_nick_pass()[0])
+                and sender[0] == "NickServ" \
+                and params[0] == self.current_nick_pass()[0] \
+                and trailing.find('You are now identified for') != -1:
+                # join channels
+            for chan in self.channels:
+                self.join_chan(chan)
+            self.queue_reply("WHO " + self.current_nick_pass()[0])
 
     def on_err_nosuchnick(self, params):
-            if params[1] == 'NickServ':
-                    #join channels
-                    for chan in self.channels:
-                            self.join_chan(chan)
+        if params[1] == 'NickServ':
+            # join channels
+            for chan in self.channels:
+                self.join_chan(chan)
 
     def on_err_unavailresource(self, params, sender, trailing):
         nick, passwd = self.current_nick_pass()
@@ -317,13 +300,14 @@ class irc_connection:
             after a few hours by server)
         """
         if params[1] == nick \
-            and sender[0] == 'NickServ' \
-            and trailing.find('temporarily unavailable') != -1:
-                msg = "release" + ' ' + nick + ' ' + passwd
-                self.queue_binary_reply(b'PRIVMSG NickServ :' + msg.encode('utf8'))
-                self.logger.warn('nick %s is being protected, tried to release it', nick)
-                self.nick_rotate()
-                self.try_nick()
+                and sender[0] == 'NickServ' \
+                and trailing.find('temporarily unavailable') != -1:
+            msg = "release" + ' ' + nick + ' ' + passwd
+            self.queue_binary_reply(b'PRIVMSG NickServ :' + msg.encode('utf8'))
+            self.logger.warn(
+                'nick %s is being protected, tried to release it', nick)
+            self.nick_rotate()
+            self.try_nick()
 
     def on_err_nicknameinuse(self):
         nick, passwd = self.current_nick_pass()
@@ -336,4 +320,3 @@ class irc_connection:
 
     def pending_write(self):
         return len(self._send_queue) != 0
-

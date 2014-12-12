@@ -36,6 +36,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class bot:
+
     def __init__(self):
 
         with open('secrets.json') as f:
@@ -122,5 +123,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
