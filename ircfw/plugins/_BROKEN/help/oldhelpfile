@@ -1,0 +1,83 @@
+melba
+see http://images.google.bg/images?q=ice+cream+fruit+salad
+
+powerrangers
+GO GO Power Rangers! [tudu duuduudu] GO GO Power Rangers! [tudu duuduudu] GO GO Power Rangers! Mighty Morphing Power Rangers!!!!
+
+re
+re <pattern> <text to match>; a regular expression tester (no blanks in the pattern)
+
+sa
+sa <word or phrase>; translates english<->bulgarian
+
+help
+HELP HELP I'M BEING REPRESSED
+
+ftb
+ftb <number> [<from base> [<to base>]]; converts <number> from base <from base> to <to base>, skip <from base> and 10 is assumed, skip <to base> and 16 is assumed, you can skip both
+
+pi
+as requested by slowbit, returns pi
+
+ping
+ping [host] uses http://downforeveryoneorjustme.com/ to check for host's status
+
+what is
+what is <phrase>
+
+when is
+when is <phrase>
+
+who is
+who is <phrase>
+
+where is
+where is <phrase>
+
+choose
+choose <list of two or more items separated by or>; randomly choose an item from the list
+
+syn
+as requested by Chalamius, hi chala
+
+topic
+topic [<nick>]; tell the topic to <nick>
+
+chr
+chr <codepoint>; return the unicode character corresponding to <codepoint>
+
+namechr
+namechr <unicode character>; report the name of <unicode character> and its codepoint
+
+grouphug
+grouphug will give a random confession
+
+fml
+fml will give a random confession
+
+reverse
+reverse input string
+
+length
+return length of string
+
+getname
+getname [<type>]; return a random name, type getname types to see the whole list
+
+substitute
+substitute <pattern> <newtxt> <oldtxt>; no spaces in pattern and newtxt
+
+trechnik
+trechnik <word>; get the meaning of a bulgarian word
+
+isprefixcode
+<q> <list of word lenghts, separated by whitespace>; checks the kraft inequality
+
+genvarname
+<language>; generate a variable name for <language>; list of langugages: autohotkey
+
+rdphobia
+get yourself a new fear
+
+wrong
+wrong [<nick>]; tell <nick> he is wroooooong

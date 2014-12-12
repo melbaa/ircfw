@@ -1,0 +1,5 @@
+plz password 
+  join channel
+  privmsg server nick?
+  die
+  restart
