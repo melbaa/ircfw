@@ -171,7 +171,7 @@ class proxy:
     """
 
     def install_handler(self, what):
-        self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
+        # self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
         self.ioloop.add_handler(
             self.irc_connection.irc_socket.fileno(), self.irc_connection_ready, what)
         logmsg = 'installed irc_socket handler for '

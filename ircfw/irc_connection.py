@@ -26,15 +26,32 @@ class irc_connection:
     def __init__(self, host='irc.d-t-net.de', port=6667, use_ssl=False, nicks=[("nick1", 'pass1'), ('nick2', 'pass2')]  # list of (nick, pass) tuples
                  , irc_password='', channels=('#testschan',)
                  ):
-        """the max num of bytes for a command is 512, including
+        self.logger = logging.getLogger(__name__)
+        """
+              the max num of bytes for a command is 512, including
               the \r\n at the end, thus 510 for command and params only.
               It is lowered on rpl_whoreply (actually possible with rpl_welcome
               too and should be simpler, but we might not have our cloak yet)
-              to compensate for user/mask/host size. see command.py
+              to compensate for user/mask/host size.
         """
-        self.logger = logging.getLogger(__name__)
-
         self.BUFSIZE = 510
+        """
+        recv takes a bufsize argument, but nobody bothers to actually research
+        what bufsize makes sense on their platform. and it's even less obvious
+        for crossplatform python. so we use an arbitrary power of 2 as
+        recommended in the docs.
+
+        update: docs probably recommend 4096, because kernel pages are often 4k
+
+        update: 262144 is mentioned in Lib/asyncio/selector_events.py as
+        max_size = 256 * 1024
+
+        update: MaxRecvDataSegmentLength - Sets the maximum data segment
+        length that can be received. This value should be set to multiples
+        of PAGE_SIZE. Currently the maximum supported value is 64 * PAGE_SIZE,
+        e.g. 262144 if PAGE_SIZE is 4kB.
+        """
+        self.RECVSIZE = 4096
         self.nicks = nicks
         """
         the index for enumerate(self.nicks)
@@ -48,9 +65,19 @@ class irc_connection:
         self.irc_port = port
         self.use_ssl = use_ssl
 
-        self.irc_socket = self.create_socket(self.irc_host, self.irc_port, self.use_ssl
-                                             )
+        self.irc_socket = self.create_socket(
+            self.irc_host, self.irc_port, self.use_ssl)
+
         self.irc_socket.setblocking(0)
+
+        """
+        nonblocking ssl sockets might raise
+        SSLWantReadError or SSLWantWriteError, so we have to do what ssl wants,
+        before we can send what we want
+        """
+        # todo catch those errors somewhere
+        #self.ssl_want_read = False
+        #self.ssl_want_write = False
 
         """
         the irc_socket gives us incomplete irc messages so we queue them
@@ -87,10 +114,11 @@ class irc_connection:
             return newlinesz, foundpos
 
         more = None
+
         if isinstance(self.irc_socket, ssl.SSLSocket):
-            more = self.irc_socket.read(self.BUFSIZE)
+            more = self.irc_socket.read(self.RECVSIZE)
         else:
-            more = self.irc_socket.recv(self.BUFSIZE)
+            more = self.irc_socket.recv(self.RECVSIZE)
 
         if len(more):
             self._recv_queue += more

@@ -8,9 +8,9 @@ An extensible IRC framework built on top of ZeroMQ.
 * no busy loops
 
 # Install
-get python 3.4  
-pip install pyzmq  
-pip install lxml (or lxml-3.4.1.win32-py3.4.exe from http://www.lfd.uci.edu/~gohlke/pythonlibs/)  
+get python 3.4+  
+pip install -r requirements.txt
+windows tip: lxml-3.4.1.win32-py3.4.exe from http://www.lfd.uci.edu/~gohlke/pythonlibs/  
 git clone github.com/melbaa/ircfw  
 
 # Usage
