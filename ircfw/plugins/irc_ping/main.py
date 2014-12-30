@@ -16,35 +16,39 @@ components:
 
 facts:
     implementing the functionality here is inefficient. it makes much more
-sense to do it closer to the network (in proxy, as it's responsible for
-reconnections). the point was to see what needed to be touched in order to
-get this functionality from a plugin. turns out not much, but enough to require
-knowledge of the rest of the framework.
+    sense to do it closer to the network (in proxy, as it's responsible for
+    reconnections). the point was to see what needed to be touched in order to
+    get this functionality from a plugin. unfortunately the ad-hoc protocol
+    currently used between components has no clean way to support carrying a
+    control messages from plugins to other components.
+
     to stay connected, we have to interact with the network. the way
-(excluding optimizations) is via ping/pong messages.
+    (excluding optimizations) is via ping/pong messages.
+
     network can send us ping, we have to reply with pong. this passive stance
-fails, because we might lose an incoming ping, so we never know when to pong.
+    fails, because we might lose an incoming ping, so we never know when to pong.
+
     we can send ping, network has to reply with pong. active approach is best,
-because we know for sure that for some reason, we aren't receiving pongs from
-the network. either our ping didn't reach network, or pong didn't reach us.
-assuming a network error, we have to reconnect.
+    because we know for sure that for some reason, we aren't receiving pongs from
+    the network. either our ping didn't reach network, or pong didn't reach us.
+    assuming a network error, we have to reconnect.
+
     we have to know (keep state) if we had a recent interaction, if we sent a
-ping and wait for a pong, if a pong hasn't arrived recently.
+    ping and wait for a pong, if a pong hasn't arrived recently and reconnect needed.
+
     we (this plugin) can't reconnect on its own, it has to tell a proxy to do it.
+
     this plugin maintains connections with multiple irc networks, via respective
-proxy.
+    proxy.
 
+stories:
+    network sends us ping, send pong. start timer that on timeout, has to do an
+    active ping
 
-states:
-    CLEAN (60 sec) - had server interaction recently, all should be fine
-        start a timeout
-        on timeout expires: send a ping, move to PING_SENT
-        on receive ping/pong: restart timeout
-    PING_SENT (60 sec) - no interaction recently, so we send a PING
-        on timeout, tell the proxy, talking to that server to reconnect
-    RECONNECTING (60 sec)
+    bot just started, start timer that on timeout does an active ping
 
-
+    timer timeout. send ping. start a timer waiting for pong. on timeout
+    ask proxy to reconnect. on pong, stop timer. start timer for active ping.
 """
 
 class plugin:
@@ -52,7 +56,7 @@ class plugin:
     def __init__(self, zmq_ioloop, zmq_ctx):
 
         self.logger = logging.getLogger(__name__)
-        self.plugin_name = b'irc_ping'  # this is the topic we sub to
+        self.plugin_name = const.IRC_PING_PLUGIN  # this is the topic we sub to
 
         self.request = zmq_ctx.socket(zmq.SUB)
         self.request.connect(const.PLUGIN_DISPATCH)

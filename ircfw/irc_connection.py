@@ -70,14 +70,6 @@ class irc_connection:
 
         self.irc_socket.setblocking(0)
 
-        """
-        nonblocking ssl sockets might raise
-        SSLWantReadError or SSLWantWriteError, so we have to do what ssl wants,
-        before we can send what we want
-        """
-        # todo catch those errors somewhere
-        #self.ssl_want_read = False
-        #self.ssl_want_write = False
 
         """
         the irc_socket gives us incomplete irc messages so we queue them

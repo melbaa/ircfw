@@ -1,7 +1,8 @@
 An extensible IRC framework built on top of ZeroMQ.
 
 # Features
-* main components communicating via ZeroMQ, meaning they can be started separately on different machines
+* main components communicating via ZeroMQ, meaning they can be started
+separately on different machines
 * handle ssl and password protected servers and nicks
 * plugin architecture
 * multiple server support
@@ -25,9 +26,12 @@ All plugins need unique triggers.
 
 # Why make this
 * IRC is a relatively simple text protocol, easy to debug
-* have more than just a mental framework for a distributed system
 * practice programming abstraction and refactoring
 * mostly a proof of concept and for learning ZeroMQ aka. toy project
+* have more than just a mental framework for a distributed system.
+Develop an appreciation for
+distributed systems topics like naming and discovery; data serialization 
+formats and protocol design; connectivity and liveness; reliability
 
 # About IRC
 architecture http://www.irchelp.org/irchelp/rfc/rfc2810.txt  
