@@ -9,10 +9,10 @@ separately on different machines
 * no busy loops
 
 # Install
-get python 3.4+  
-pip install -r requirements.txt
+* get python 3.4+  
+* pip install -r requirements.txt
 windows tip: lxml-3.4.1.win32-py3.4.exe from http://www.lfd.uci.edu/~gohlke/pythonlibs/  
-git clone github.com/melbaa/ircfw  
+* git clone github.com/melbaa/ircfw  
 
 # Usage
 cd path/to/project  
