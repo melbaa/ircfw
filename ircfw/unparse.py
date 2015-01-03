@@ -6,12 +6,12 @@ def make_privmsgs(to_nick, nick_or_channel, txtbytes, bufsize, option='truncate'
     option is one of 'truncate' (default), 'raise', 'multiline'
     multiline splits the message into multiple lines and prepends
       sender to all parts
-    truncate is only the first line
-    see queue_reply() for decriptions of trucate and raise
+    truncate will cut the message to bufsize bytes
+    raise will throw an exc when msg > bufsize
     """
 
     def prepend_sender_dead_code():
-        """this will return something like 
+        """this will return something like
            "PRIVMSG #channel :nick, " or
            "PRIVMSG nick : "
         """
@@ -52,7 +52,7 @@ def make_privmsgs(to_nick, nick_or_channel, txtbytes, bufsize, option='truncate'
             yield header + msg
 
     def codeleader(byte):
-        """returns (bool, int), where bool is true if the byte is 
+        """returns (bool, int), where bool is true if the byte is
            a code leader, int is the size of teh code in utf-8
         """
         if byte >> 7 == 0b0:

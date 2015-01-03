@@ -12,8 +12,18 @@ import ircfw.irc_connection
 
 class proxy:
 
-    def __init__(self, proxyname, should_see_nicks, host, port, use_ssl, nicks, irc_password, channels, zmq_ioloop_instance, zmq_ctx
-                 ):
+    def __init__(
+            self,
+            proxyname,
+            should_see_nicks,
+            host,
+            port,
+            use_ssl,
+            nicks,
+            irc_password,
+            channels,
+            zmq_ioloop_instance,
+            zmq_ctx):
         """
         proxyname - string - for debugging
         should_see_nicks - list of strings - nicks that should be visible via this proxy
@@ -68,12 +78,17 @@ class proxy:
 
         try:
             self.irc_connection = ircfw.irc_connection.irc_connection(
-                self.host, self.port, self.use_ssl, self.nicks, self.irc_password, self.channels
-            )
+                self.host,
+                self.port,
+                self.use_ssl,
+                self.nicks,
+                self.irc_password,
+                self.channels)
 
-            self.ioloop.add_handler(self.irc_connection.irc_socket.fileno(), self.irc_connection_ready, self.ioloop.READ | self.ioloop.WRITE
-                                    #, self.ioloop.WRITE
-                                    )
+            self.ioloop.add_handler(
+                self.irc_connection.irc_socket.fileno(),
+                self.irc_connection_ready,
+                self.ioloop.READ | self.ioloop.WRITE)
         except RuntimeError as e:
             self.logger.debug("wtf happens", exc_info=True)
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
@@ -94,25 +109,31 @@ class proxy:
             raw_messages = self.irc_connection.read()
 
             """
-      FIXME currently this is a race with irc_connection.read(), nick might
-      change between a .read() and current_nick..() call
-      fix would be read() to attach a current nick to each msg
-      """
-            current_irc_nick = self.irc_connection.current_nick_pass()[0]
+            FIXME currently this is a race with irc_connection.read(), nick might
+            change between a .read() and current_nick..() call
+            fix would be read() to attach a current nick to each msg
+            """
+            nick = self.irc_connection.current_nick()
             for rawmsg in raw_messages:
                 self.logger.info(rawmsg)
 
                 """
-        self.proxyname for debugging
-        msgtype is irc_raw
-          or control, so we can notify plugin dispatch
-          there should be a geordi here
-        current_irc_nick so plugin dispatch know if it's a trigger,
-          only if msgtype is irc_raw
-        """
-                to_send = [const.IRC_MSG, self.proxyname                           # lame, have to fix in irc_connection
-                           , current_irc_nick.encode('utf8'), str(self.irc_connection.BUFSIZE).encode('utf8'), rawmsg
-                           ]
+                self.proxyname for debugging
+                msgtype is irc_raw
+                or control, so we can notify plugin dispatch
+                there should be a geordi here
+                current_irc_nick so plugin dispatch know if it's a trigger,
+                only if msgtype is irc_raw
+                """
+
+                # lame, have to fix in irc_connection
+                BUFSIZE = self.irc_connection.bufsize()
+                to_send = [
+                    const.IRC_MSG,
+                    self.proxyname,
+                    nick,
+                    str(BUFSIZE).encode('utf8'),
+                    rawmsg]
                 self.logger.info('about to send %s', to_send)
 
                 if self.irc_connection.pending_write():
@@ -164,11 +185,11 @@ class proxy:
         self.irc_connection.queue_binary_reply(msg)
         self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
         """
-    if msgtype == b'irc_raw':
-      self.irc_connection.queue_binary_reply(msg)
-    else:
-      raise RuntimeError('unknown message type')
-    """
+        if msgtype == b'irc_raw':
+        self.irc_connection.queue_binary_reply(msg)
+        else:
+        raise RuntimeError('unknown message type')
+        """
 
     def install_handler(self, what):
         # self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
