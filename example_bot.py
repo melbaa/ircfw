@@ -20,7 +20,6 @@ import ircfw.plugins.cplusplus.main
 import ircfw.plugins.define.main
 import ircfw.plugins.googlism.main
 import ircfw.plugins.hostinfo.main
-import ircfw.plugins.irc_ping.main
 import ircfw.plugins.length.main
 import ircfw.plugins.phobia.main
 import ircfw.plugins.pick.main
@@ -93,7 +92,6 @@ class bot:
             ctx,
             secrets['plugins']['define']['api_key'])
 
-        irc_ping = ircfw.plugins.irc_ping.main.plugin(self.ioloop, ctx)
         cplusplus = ircfw.plugins.cplusplus.main.plugin(self.ioloop, ctx)
         hostinfo = ircfw.plugins.hostinfo.main.plugin(self.ioloop, ctx)
         phobias = ircfw.plugins.phobia.main.plugin(self.ioloop, ctx)
