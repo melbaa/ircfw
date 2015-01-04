@@ -64,6 +64,12 @@ class irc_protocol_handlers:
             yield from self.on_err_unavailresource(params, sender, trailing)
         elif command_bin == const.ERR_NICKNAMEINUSE:
             yield from self.on_err_nicknameinuse()
+        elif command_bin == const.PING:
+            yield from self.on_PING(trailing)
+        elif command_bin == const.PONG:
+            # don't have to do anything here
+            self.logger.info('got ' + line)
+            pass
 
     def try_nick(self):
         nick, passwd = self.current_nick_pass()
@@ -87,6 +93,9 @@ class irc_protocol_handlers:
 
     def nick_rotate(self):
         self._current_nick += 1
+
+    def on_PING(self, trailing):
+        yield const.PONG + b' :' + utf8(trailing)
 
     def on_rpl_welcome(self):
         # if we supplied passwords we have to wait for a reply from nickserv
@@ -267,8 +276,8 @@ class irc_connection:
         while foundpos != -1:
             newline = self._recv_queue[:foundpos]
             self._recv_queue = self._recv_queue[foundpos + newlinesz:]
+
             # self.logger.info("getline: " + str(newline))
-            # yield newline.decode('utf-8', 'ignore') #note the yield
 
             irc_msgs = self.irc_handlers.feed(newline)
             for msg in irc_msgs:

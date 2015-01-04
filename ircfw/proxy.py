@@ -1,6 +1,8 @@
-import traceback
+import datetime
 import logging
 import socket
+import traceback
+import weakref
 
 import zmq
 import zmq.eventloop
@@ -10,8 +12,75 @@ import ircfw.globals
 import ircfw.irc_connection
 
 
-class proxy:
+class irc_heartbeat:
+    """
+    reset timeout each time a handler is installed, means we got something to
+    read. also zero counter
 
+    on timeout, send a PING, reset timeout, incr counter
+    on second timeout, reconnect, reset_timeout, zero counter
+    """
+    def __init__(self, ioloop, proxy):
+        self.ioloop = ioloop
+        self.logger = logging.getLogger(
+            __name__ + '.' + self.__class__.__name__)
+        self.timer = None
+        self.TTL = datetime.timedelta(minutes=4)  # time before timeout
+        """
+        pointer to parent? is it bad? how to break the circular ref. here
+        need it for reconnect, sending a reply
+        use a weak reference just in case
+
+        an alternative would be to return "commands" or "advice" to the caller.
+        caller then tells proxy what to do and this class is reduced to just a
+        state machine
+        """
+        self._proxy = weakref.proxy(proxy)
+
+        self.init_timeout()
+
+    def init_timeout(self):
+        self.timeout_count = 0
+        self.reset_timeout()
+
+    def reset_timeout(self):
+        self.stop_timeout()
+        self.timer = self.ioloop.add_timeout(self.TTL, self.on_timeout)
+
+    def stop_timeout(self):
+        if self.timer:
+            self.ioloop.remove_timeout(self.timer)
+            self.timer = None
+
+    def on_anymsg(self):
+        self.init_timeout()
+
+    def on_timeout(self):
+        self.timeout_count += 1
+        if self.timeout_count == 1:
+            # send a ping somehow
+            self.logger.info('trying to ping')
+            self._proxy.queue_binary_reply(b'PING :helloworld')
+        elif self.timeout_count == 2:
+            # reconnect somehow
+            self.logger.info('trying to reconnect')
+            self._proxy.reconnect()
+        # what happens if we cancel an exired timeout? seems like we shouldn't
+        self.timer = None
+        self.reset_timeout()
+
+    def on_reconnect_start(self):
+        """
+        don't need this timer while there's no open connection
+        """
+        self.stop_timeout()
+
+    def on_reconnect_success(self):
+        self.init_timeout()
+
+
+
+class proxy:
     def __init__(
             self,
             proxyname,
@@ -42,7 +111,7 @@ class proxy:
         self.ioloop.add_handler(
             self.dealer, self.on_reply_from_bot, self.ioloop.READ)
 
-        if len(should_see_nicks) > 0:
+        if len(should_see_nicks):
             """
             advertise nicks on this proxy that SHOULD be available.
             some plugins depend on those nicks. such a timeout is a temporary
@@ -67,6 +136,10 @@ class proxy:
         self.nicks = nicks
         self.irc_password = irc_password
         self.channels = channels
+        self.irc_heartbeat = irc_heartbeat(
+            self.ioloop,
+            self,
+            )
         self.irc_connection = None
         self.reconnect()
 
@@ -75,6 +148,8 @@ class proxy:
         if self.irc_connection:
             self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
             self.irc_connection = None
+
+        self.irc_heartbeat.on_reconnect_start()
 
         try:
             self.irc_connection = ircfw.irc_connection.irc_connection(
@@ -85,10 +160,10 @@ class proxy:
                 self.irc_password,
                 self.channels)
 
-            self.ioloop.add_handler(
-                self.irc_connection.irc_socket.fileno(),
-                self.irc_connection_ready,
-                self.ioloop.READ | self.ioloop.WRITE)
+
+            self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
+            self.irc_heartbeat.on_reconnect_success()
+
         except RuntimeError as e:
             self.logger.debug("wtf happens", exc_info=True)
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
@@ -157,6 +232,9 @@ class proxy:
                 self.install_handler(self.ioloop.READ)
 
         try:
+
+            self.irc_heartbeat.on_anymsg()
+
             if evts & self.ioloop.READ:
                 on_read(self)
             if evts & self.ioloop.WRITE:
@@ -182,8 +260,7 @@ class proxy:
         self.logger.info('received reply from backend %s', rep)
         proxy_name, plugin_name, msg = rep
 
-        self.irc_connection.queue_binary_reply(msg)
-        self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
+        self.queue_binary_reply(msg)
         """
         if msgtype == b'irc_raw':
         self.irc_connection.queue_binary_reply(msg)
@@ -191,10 +268,16 @@ class proxy:
         raise RuntimeError('unknown message type')
         """
 
+    def queue_binary_reply(self, msg):
+        self.irc_connection.queue_binary_reply(msg)
+        self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
+
     def install_handler(self, what):
         # self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
         self.ioloop.add_handler(
-            self.irc_connection.irc_socket.fileno(), self.irc_connection_ready, what)
+            self.irc_connection.irc_socket.fileno(),
+            self.irc_connection_ready,
+            what)
         logmsg = 'installed irc_socket handler for '
         if what & self.ioloop.READ:
             logmsg += 'READ '

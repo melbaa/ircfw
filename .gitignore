@@ -45,5 +45,7 @@ docs/_build/
 target/
 
 secrets.json
+secrets.json.production
+secrets*
 lul
 docs/

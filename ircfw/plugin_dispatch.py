@@ -30,12 +30,14 @@ class plugin_dispatch:
         topic, zmq_addr, proxy_name, *rest = msg
 
         # pub to irc ping plugin: (plugin_name, reply_addr, from_proxy, msg)
+        """
         if topic == const.PING_TOPIC:
             curr_nick, bufsize, rawmsg = rest
             to_pub = [const.IRC_PING_PLUGIN, zmq_addr, proxy_name, rawmsg]
             self.plugin_dispatch.send_multipart(to_pub)
             self.logger.info('sent message %s', to_pub)
         # end of irc ping plugin
+        """
 
         #C++ PLUGIN
         if topic == const.PRIVMSG_TOPIC:
