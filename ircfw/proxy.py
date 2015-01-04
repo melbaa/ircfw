@@ -3,6 +3,7 @@ import logging
 import socket
 import traceback
 import weakref
+import ssl
 
 import zmq
 import zmq.eventloop
@@ -161,15 +162,15 @@ class proxy:
                 self.channels)
 
 
-            self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
+            self.install_handler()
             self.irc_heartbeat.on_reconnect_success()
 
         except RuntimeError as e:
             self.logger.debug("wtf happens", exc_info=True)
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
-                self.reconnect  # loop; try again
-                , 10000  # 10 sec
-                , self.ioloop)
+                self.reconnect,  # loop; try again
+                10000,  # 10 sec
+                self.ioloop)
             delayedcb.start()
         except Exception as err:
             self.logger.error(traceback.format_exc())
@@ -211,9 +212,6 @@ class proxy:
                     rawmsg]
                 self.logger.info('about to send %s', to_send)
 
-                if self.irc_connection.pending_write():
-                    # in case irc_connection itself wanted to write something
-                    self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
                 try:
                     self.dealer.send_multipart(to_send, zmq.NOBLOCK)
                     self.logger.info('sent!')
@@ -223,13 +221,6 @@ class proxy:
         def on_write(self):
             more = self.irc_connection.write()
             self.logger.info('wrote reply to irc_connection.irc_socket')
-            if more == 0:
-                """
-                reinstall READ only handler if there is nothing else to write
-                when someone queues something to write, he has to install a
-                READ|WRITE handler
-                """
-                self.install_handler(self.ioloop.READ)
 
         try:
 
@@ -241,6 +232,12 @@ class proxy:
                 on_write(self)
             if evts & self.ioloop.ERROR:
                 raise RuntimeError("oops. socket returned error")
+
+            self.install_handler()
+
+        except ssl.SSLWantReadError:
+            self.logger.info('SSLWantReadError')
+            self.install_handler()
         except socket.error as err:
             self.logger.error(traceback.format_exc())
             self.ioloop.add_callback(self.reconnect)
@@ -270,10 +267,14 @@ class proxy:
 
     def queue_binary_reply(self, msg):
         self.irc_connection.queue_binary_reply(msg)
-        self.install_handler(self.ioloop.READ | self.ioloop.WRITE)
+        self.install_handler()
 
-    def install_handler(self, what):
+    def install_handler(self):
         # self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
+        what = self.ioloop.READ
+        if self.irc_connection.pending_write():
+            what = what | self.ioloop.WRITE
+
         self.ioloop.add_handler(
             self.irc_connection.irc_socket.fileno(),
             self.irc_connection_ready,
