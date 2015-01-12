@@ -75,8 +75,8 @@ def irc_message(msg):
 def get_word(msg):
     """
     msg is a string of words separated by spaces
-    return a tuple of the first word and the remaining of the string without the
-    preceding spaces
+    return a tuple of the first word and the remaining of the string without
+    the preceding spaces
 
     get_word("word word2 word3") == ("word", "word2 word3")
     """

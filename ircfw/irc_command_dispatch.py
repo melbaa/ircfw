@@ -27,14 +27,14 @@ class irc_command_dispatch:
         self.ioloop.add_handler(
             self.router, self.read_request, self.ioloop.READ)
         """
-    going to publish parsed incoming msgs by topic
-    """
+        going to publish parsed incoming msgs by topic
+        """
         self.publisher = zmq_ctx.socket(zmq.PUB)
         self.publisher.bind(const.BROKER_BACKEND_TOPICS)
 
         """
-    for replies
-    """
+        for replies
+        """
         self.pull_replies = zmq_ctx.socket(zmq.PULL)
         self.pull_replies.bind(const.BROKER_BACKEND_REPLIES)
         self.ioloop.add_handler(
@@ -46,21 +46,30 @@ class irc_command_dispatch:
         logmsg = self.router.recv_multipart()
         self.logger.info("received message %s", logmsg)
 
-        #zmq_addr, msgtype, proxy_name, curr_nick, rawmsg = logmsg
+        # zmq_addr, msgtype, proxy_name, curr_nick, rawmsg = logmsg
         # http://www.python.org/dev/peps/pep-3132/
         zmq_addr, msgtype, proxy_name, *rest = logmsg
         if msgtype == const.IRC_MSG:
             curr_nick, bufsize, rawmsg = rest
             msg = rawmsg.decode('utf8', 'ignore')
             sender, command, params, trailing = ircfw.parse.irc_message(msg)
-            msg_to_pub = [const.IRC_MSG + const.SUBTOPIC_SEP +
-                          command.encode('utf8'), zmq_addr, proxy_name, curr_nick, bufsize, rawmsg]
+            msg_to_pub = [
+                const.IRC_MSG + const.SUBTOPIC_SEP + command.encode('utf8'),
+                zmq_addr,
+                proxy_name,
+                curr_nick,
+                bufsize,
+                rawmsg]
             self.publisher.send_multipart(msg_to_pub)
             self.logger.info("sent %s", msg_to_pub)
         elif msgtype == const.CONTROL_MSG:
             rawcmd, rawcmdargs = rest
-            to_send = [const.CONTROL_MSG + const.SUBTOPIC_SEP +
-                       rawcmd, zmq_addr, proxy_name, rawcmd, rawcmdargs]
+            to_send = [
+                const.CONTROL_MSG + const.SUBTOPIC_SEP + rawcmd,
+                zmq_addr,
+                proxy_name,
+                rawcmd,
+                rawcmdargs]
             self.publisher.send_multipart(to_send)
             self.logger.info("sent %s", to_send)
         else:

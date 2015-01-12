@@ -1,4 +1,3 @@
-import re
 import json
 import urllib.parse
 import urllib.request
@@ -44,20 +43,22 @@ class plugin:
     def on_request(self, sock, evts):
         msg = sock.recv_multipart()
         self.logger.info('got msg %s', msg)
-        topic, zmq_addr, proxy_name, bufsize \
-            , senderbytes, paramsbytes, argsbytes = msg
+        topic, zmq_addr, proxy_name, bufsize, \
+            senderbytes, paramsbytes, argsbytes = msg
 
         args = argsbytes.decode('utf8')
         args.strip()
         result = None
         if not args:
-            result = self.help()
+            result = 'give me a word or phrase'
         else:
             result = self.use(args)
         replies = ircfw.unparse.make_privmsgs(
-            senderbytes, paramsbytes, result.encode(
-                'utf8'), int(bufsize.decode('utf8')), 'multiline'
-        )
+            senderbytes,
+            paramsbytes,
+            result.encode('utf8'),
+            int(bufsize.decode('utf8')),
+            'multiline')
 
         self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
 
@@ -79,7 +80,13 @@ class plugin:
         for entry in root.getchildren():
             data_dict = {
                 # , 'meaning_core' : entry.xpath('sens/mc/text()')
-                'word': entry.xpath('term/hw/text()'), 'speech_part': entry.xpath('fl/text()'), 'meanings': entry.xpath('sens/*[self::mc or self::vi]//text()'), 'synonyms': entry.xpath('sens/syn//text()'), 'related_words': entry.xpath('sens/rel//text()'), 'near': entry.xpath('sens/near//text()'), 'antonyms': entry.xpath('sens/ant//text()')
+                'word': entry.xpath('term/hw/text()'),
+                'speech_part': entry.xpath('fl/text()'),
+                'meanings': entry.xpath('sens/*[self::mc or self::vi]//text()'),
+                'synonyms': entry.xpath('sens/syn//text()'),
+                'related_words': entry.xpath('sens/rel//text()'),
+                'near': entry.xpath('sens/near//text()'),
+                'antonyms': entry.xpath('sens/ant//text()')
             }
 
             for key in data_dict:
@@ -88,7 +95,10 @@ class plugin:
 
             entries.append(description.format(**data_dict))
 
-        return ' '.join(entries)
+        result = ' '.join(entries)
+        if not len(result):
+            result = 'no idea'
+        return result
 
     def use2(self, rawcommand):
         """
@@ -106,7 +116,6 @@ class plugin:
         b = opener.open(quote_url.format(query)).readall()
         txt = b.decode('utf8')
         json_obj = json.loads(txt)
-        #answer = json_obj['AbstractText']
         answer = json_obj['Definition'] + ' ' + json_obj['AbstractText'] \
             + ' ' + json_obj['DefinitionURL']
 

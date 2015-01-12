@@ -34,7 +34,11 @@ class irc_heartbeat:
 
         an alternative would be to return "commands" or "advice" to the caller.
         caller then tells proxy what to do and this class is reduced to just a
-        state machine
+        state machine. caller will have to map commands to functionality.
+
+        an alternative is to return closures with the required data and
+        functions captured. caller can then use the closures whenever it
+        wants
         """
         self._proxy = weakref.proxy(proxy)
 
@@ -66,7 +70,11 @@ class irc_heartbeat:
             # reconnect somehow
             self.logger.info('trying to reconnect')
             self._proxy.reconnect()
-        # what happens if we cancel an exired timeout? seems like we shouldn't
+        """
+        what happens if we cancel an exired timeout?
+        from the tornado and minitornado ioloops source, it seems like we
+        shouldn't
+        """
         self.timer = None
         self.reset_timeout()
 
@@ -78,7 +86,6 @@ class irc_heartbeat:
 
     def on_reconnect_success(self):
         self.init_timeout()
-
 
 
 class proxy:
@@ -96,7 +103,8 @@ class proxy:
             zmq_ctx):
         """
         proxyname - string - for debugging
-        should_see_nicks - list of strings - nicks that should be visible via this proxy
+        should_see_nicks - list of strings - nicks that should be visible via
+        this proxy
         rest: see irc_connection.py
 
         """
@@ -106,7 +114,6 @@ class proxy:
 
         self.ioloop = zmq_ioloop_instance
 
-        #self.dealer = ircfw.globals.CONTEXT.socket(zmq.DEALER)
         self.dealer = zmq_ctx.socket(zmq.DEALER)
         self.dealer.connect(const.BROKER_FRONTEND)
         self.ioloop.add_handler(
@@ -128,7 +135,11 @@ class proxy:
             nicksbytes = [nick.encode('utf8') for nick in should_see_nicks]
             nicksbytes = b' '.join(nicksbytes)
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
-                lambda: self.dealer.send_multipart([const.CONTROL_MSG, self.proxyname, const.PROXY_NICKS, nicksbytes]), 5000, self.ioloop)
+                lambda: self.dealer.send_multipart(
+                    [const.CONTROL_MSG,
+                        self.proxyname, const.PROXY_NICKS, nicksbytes]),
+                5000,
+                self.ioloop)
             delayedcb.start()
 
         self.host = host
@@ -139,8 +150,7 @@ class proxy:
         self.channels = channels
         self.irc_heartbeat = irc_heartbeat(
             self.ioloop,
-            self,
-            )
+            self)
         self.irc_connection = None
         self.reconnect()
 
@@ -161,18 +171,17 @@ class proxy:
                 self.irc_password,
                 self.channels)
 
-
             self.install_handler()
             self.irc_heartbeat.on_reconnect_success()
 
-        except RuntimeError as e:
+        except RuntimeError:
             self.logger.debug("wtf happens", exc_info=True)
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
                 self.reconnect,  # loop; try again
                 10000,  # 10 sec
                 self.ioloop)
             delayedcb.start()
-        except Exception as err:
+        except Exception:
             self.logger.error(traceback.format_exc())
 
     def irc_connection_ready(self, fd, evts):
@@ -185,8 +194,8 @@ class proxy:
             raw_messages = self.irc_connection.read()
 
             """
-            FIXME currently this is a race with irc_connection.read(), nick might
-            change between a .read() and current_nick..() call
+            FIXME currently this is a race with irc_connection.read(),
+            nick might change between a .read() and current_nick..() call
             fix would be read() to attach a current nick to each msg
             """
             nick = self.irc_connection.current_nick()
@@ -202,7 +211,6 @@ class proxy:
                 only if msgtype is irc_raw
                 """
 
-                # lame, have to fix in irc_connection
                 BUFSIZE = self.irc_connection.bufsize()
                 to_send = [
                     const.IRC_MSG,
@@ -238,10 +246,10 @@ class proxy:
         except ssl.SSLWantReadError:
             self.logger.info('SSLWantReadError')
             self.install_handler()
-        except socket.error as err:
+        except socket.error:
             self.logger.error(traceback.format_exc())
             self.ioloop.add_callback(self.reconnect)
-        except Exception as err:
+        except Exception:
             self.logger.error(traceback.format_exc())
 
     def on_reply_from_bot(self, sock, evts):

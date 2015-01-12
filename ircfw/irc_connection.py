@@ -51,6 +51,8 @@ class irc_protocol_handlers:
         """
         line = rawline.decode('utf8', 'ignore')
         sender, command, params, trailing = ircfw.parse.irc_message(line)
+        # logmsg = 'parsed <sender> {} <command> {} <params> {} <trailing> {}'
+        # self.logger.debug(logmsg.format(sender, command, params, trailing))
         command_bin = command.encode('utf8')
         if command_bin == const.RPL_WELCOME:
             yield from self.on_rpl_welcome()
@@ -74,7 +76,7 @@ class irc_protocol_handlers:
     def try_nick(self):
         nick, passwd = self.current_nick_pass()
         yield b"NICK " + nick
-        yield b"USER melba 8 * :surprise! meh."
+        yield b"USER melba 8 * :surprise!"
 
     def current_nick_pass(self):
         idx = self._current_nick

@@ -53,10 +53,10 @@ class bot:
             raise sys.exc_info()[1]
 
         # this replaces a method of the ioloop instance. why not derive?
-        # FIXME when different instances (probably in separate processes)
+        # TODO FIXME when different instances (probably in separate processes)
         #  will need a decent derived class for ioloop
-        # FIXME this doesn't even touch exceptions in add_handler callbacks
-        #  which the loop still swallows
+        # TODO FIXME this doesn't even touch exceptions in add_handler
+        #  callbacks which the loop still swallows
         method = types.MethodType(handle_callback_exception, self.ioloop)
         self.ioloop.handle_callback_exception = method
 
@@ -111,7 +111,7 @@ class bot:
         self.ioloop.start()
 
     def run_once(self):
-        pass
+        raise NotImplementedError
 
 
 def main():
