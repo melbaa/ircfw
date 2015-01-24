@@ -4,8 +4,6 @@ import logging
 import zmq
 
 import ircfw.constants as const
-import ircfw.parse
-import ircfw.unparse
 
 
 class generic_plugin:
@@ -19,9 +17,14 @@ class generic_plugin:
     the zmq_addr field.
     """
 
-    def __init__(self, zmq_ioloop, zmq_ctx, logger_name, plugin_name  # eg const.ARTISTINFO_PLUGIN
-                 , subscribe_topics  # list
-                 , on_msg_callback):
+    def __init__(
+            self,
+            zmq_ioloop,
+            zmq_ctx,
+            logger_name,
+            plugin_name,  # eg const.ARTISTINFO_PLUGIN
+            subscribe_topics,  # list
+            on_msg_callback):
         self.logger = logging.getLogger(logger_name)
         self.plugin_name = plugin_name
 

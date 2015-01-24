@@ -1,1 +1,1 @@
-run powershell -noexit -command "c:/games/python34/python.exe example_bot.py 2>&1 | tee -filepath lul
+run powershell -noexit -command "c:/games/python34/python.exe example_bot.py secrets.json 2>&1 | tee -filepath lul

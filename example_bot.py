@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import logging
 import sys
@@ -36,9 +37,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 class bot:
 
-    def __init__(self):
+    def __init__(self, conf_file):
 
-        with open('secrets.json') as f:
+        with open(conf_file) as f:
             secrets = json.loads(f.read())
 
         ctx = zmq.Context()
@@ -116,7 +117,10 @@ class bot:
 
 def main():
 
-    bot().run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('CONFIGPATH', type=str, help='path to secrets.json')
+    args = parser.parse_args()
+    bot(args.CONFIGPATH).run()
 
 
 if __name__ == '__main__':
