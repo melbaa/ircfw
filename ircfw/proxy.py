@@ -255,23 +255,12 @@ class proxy:
     def on_reply_from_bot(self, sock, evts):
         """
         read a reply from the irc bot and pass it to irc
-        incoming messages on dealer socket are like this:
-        frame 1: type. one of
-          irc_raw:
-          control:
-        frame 2: msg
         """
         rep = self.dealer.recv_multipart()
         self.logger.info('received reply from backend %s', rep)
         proxy_name, plugin_name, msg = rep
 
         self.queue_binary_reply(msg)
-        """
-        if msgtype == b'irc_raw':
-        self.irc_connection.queue_binary_reply(msg)
-        else:
-        raise RuntimeError('unknown message type')
-        """
 
     def queue_binary_reply(self, msg):
         self.irc_connection.queue_binary_reply(msg)

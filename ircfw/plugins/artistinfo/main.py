@@ -64,9 +64,11 @@ class plugin():
                     result = str(err)
 
             replies = ircfw.unparse.make_privmsgs(
-                sender[0].encode('utf8'), params[0].encode('utf8'), result.encode(
-                    'utf8'), int(bufsize.decode('utf8')), 'multiline'
-            )
+                sender[0].encode('utf8'),
+                params[0].encode('utf8'),
+                result.encode('utf8'),
+                int(bufsize.decode('utf8')),
+                'multiline')
             self._send_replies(replies, zmq_addr, proxy_name)
 
     def _send_replies(self, replies, zmq_addr, proxy_name):
