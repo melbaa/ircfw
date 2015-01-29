@@ -19,23 +19,25 @@ class generic_plugin:
 
     def __init__(
             self,
-            zmq_ioloop,
-            zmq_ctx,
             logger_name,
             plugin_name,  # eg const.ARTISTINFO_PLUGIN
             subscribe_topics,  # list
-            on_msg_callback):
+            on_msg_callback,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx):
         self.logger = logging.getLogger(logger_name)
         self.plugin_name = plugin_name
 
         self.request = zmq_ctx.socket(zmq.SUB)
-        self.request.connect(const.PLUGIN_DISPATCH)
+        self.request.connect(plugin_dispatch)
 
         for topic in subscribe_topics:
             self.request.setsockopt(zmq.SUBSCRIBE, topic)
 
         self.push_reply = zmq_ctx.socket(zmq.PUSH)
-        self.push_reply.connect(const.BROKER_BACKEND_REPLIES)
+        self.push_reply.connect(command_dispatch_backend_replies)
 
         self.ioloop = zmq_ioloop
         self.ioloop.add_handler(

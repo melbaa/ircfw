@@ -18,25 +18,31 @@ class irc_command_dispatch:
     4) dispatch replies to the clients on the router socket from 1)
     """
 
-    def __init__(self, zmq_ioloop_instance, zmq_ctx):
+    def __init__(
+            self,
+            command_dispatch_frontend,
+            command_dispatch_backend_topics,
+            command_dispatch_backend_replies,
+            zmq_ioloop_instance,
+            zmq_ctx):
 
         self.ioloop = zmq_ioloop_instance
 
         self.router = zmq_ctx.socket(zmq.ROUTER)
-        self.router.bind(const.BROKER_FRONTEND)
+        self.router.bind(command_dispatch_frontend)
         self.ioloop.add_handler(
             self.router, self.read_request, self.ioloop.READ)
         """
         going to publish parsed incoming msgs by topic
         """
         self.publisher = zmq_ctx.socket(zmq.PUB)
-        self.publisher.bind(const.BROKER_BACKEND_TOPICS)
+        self.publisher.bind(command_dispatch_backend_topics)
 
         """
         for replies
         """
         self.pull_replies = zmq_ctx.socket(zmq.PULL)
-        self.pull_replies.bind(const.BROKER_BACKEND_REPLIES)
+        self.pull_replies.bind(command_dispatch_backend_replies)
         self.ioloop.add_handler(
             self.pull_replies, self.read_reply, self.ioloop.READ)
 

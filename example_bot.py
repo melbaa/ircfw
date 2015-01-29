@@ -34,6 +34,27 @@ import ircfw.proxy
 
 logging.basicConfig(level=logging.DEBUG)
 
+"""
+inproc:// transports are not disconnected and also seem to be
+messsed up on windows
+update: should be fixed in newer zmq versions
+TODO see what happens when tcp:// is replaced by inproc
+
+those ports should really be randomly assigned, but then we'd need
+  an address book on the network
+"""
+# proxies connect, command dispatch binds
+COMMAND_DISPATCH_FRONTEND = "tcp://127.0.0.1:70005"
+
+# plugin dispatch connects, command dispatch binds
+COMMAND_DISPATCH_BACKEND_TOPICS = "tcp://127.0.0.1:70006"
+
+# plugins connect, command dispatch binds
+COMMAND_DISPATCH_BACKEND_REPLIES = "tcp://127.0.0.1:70007"
+
+# plugins connect, plugin dispatch binds
+PLUGIN_DISPATCH = 'tcp://127.0.0.1:70008'
+
 
 class bot:
 
@@ -61,14 +82,19 @@ class bot:
         method = types.MethodType(handle_callback_exception, self.ioloop)
         self.ioloop.handle_callback_exception = method
 
-        main_broker = ircfw.irc_command_dispatch \
-            .irc_command_dispatch(self.ioloop, ctx)
+        main_broker = ircfw.irc_command_dispatch.irc_command_dispatch(
+            COMMAND_DISPATCH_FRONTEND,
+            COMMAND_DISPATCH_BACKEND_TOPICS,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
 
         proxies = []
         for servername in secrets['servers']:
             data = secrets['servers'][servername]
             proxy = ircfw.proxy.proxy(
                 proxyname=servername,
+                command_dispatch_frontend=COMMAND_DISPATCH_FRONTEND,
                 should_see_nicks=data['should_see_nicks'],
                 host=data['host'],
                 port=data['port'],
@@ -80,33 +106,90 @@ class bot:
                 zmq_ctx=ctx)
             proxies.append(proxy)
 
-        plugin_dispatch = ircfw.plugin_dispatch \
-            .plugin_dispatch(self.ioloop, ctx)
+        plugin_dispatch = ircfw.plugin_dispatch.plugin_dispatch(
+            COMMAND_DISPATCH_BACKEND_TOPICS,
+            PLUGIN_DISPATCH,
+            self.ioloop,
+            ctx)
 
         artistinfo = ircfw.plugins.artistinfo.main.plugin(
-            self.ioloop,
-            ctx,
             secrets['plugins']['artistinfo']['api_key'],
-            secrets['plugins']['artistinfo']['api_secret'])
-        define = ircfw.plugins.define.main.plugin(
+            secrets['plugins']['artistinfo']['api_secret'],
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
-            ctx,
-            secrets['plugins']['define']['api_key'])
-
-        cplusplus = ircfw.plugins.cplusplus.main.plugin(self.ioloop, ctx)
-        hostinfo = ircfw.plugins.hostinfo.main.plugin(self.ioloop, ctx)
-        phobias = ircfw.plugins.phobia.main.plugin(self.ioloop, ctx)
-        sadict = ircfw.plugins.sadict.main.plugin(self.ioloop, ctx)
-        re = ircfw.plugins.re.main.plugin(self.ioloop, ctx)
+            ctx)
+        define = ircfw.plugins.define.main.plugin(
+            secrets['plugins']['define']['api_key'],
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        cplusplus = ircfw.plugins.cplusplus.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        hostinfo = ircfw.plugins.hostinfo.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        phobias = ircfw.plugins.phobia.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        sadict = ircfw.plugins.sadict.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        re = ircfw.plugins.re.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
         codepointinfo = ircfw.plugins.codepointinfo.main.plugin(
-            self.ioloop, ctx)
-        length = ircfw.plugins.length.main.plugin(self.ioloop, ctx)
-        privmsg_ping = ircfw.plugins.privmsg_ping.main.plugin(self.ioloop, ctx)
-        reverse = ircfw.plugins.reverse.main.plugin(self.ioloop, ctx)
-        pick = ircfw.plugins.pick.main.plugin(self.ioloop, ctx)
-        substitute = ircfw.plugins.substitute.main.plugin(self.ioloop, ctx)
-        googlism = ircfw.plugins.googlism.main.plugin(self.ioloop, ctx)
-        quakelive = ircfw.plugins.quakelive.main.plugin(self.ioloop, ctx)
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        length = ircfw.plugins.length.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        privmsg_ping = ircfw.plugins.privmsg_ping.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        reverse = ircfw.plugins.reverse.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        pick = ircfw.plugins.pick.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        substitute = ircfw.plugins.substitute.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        googlism = ircfw.plugins.googlism.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        quakelive = ircfw.plugins.quakelive.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
 
     def run(self):
         self.ioloop.start()

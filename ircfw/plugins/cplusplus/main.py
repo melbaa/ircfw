@@ -13,7 +13,12 @@ import ircfw.parse
 
 class plugin:
 
-    def __init__(self, zmq_ioloop, zmq_ctx):
+    def __init__(
+            self,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx):
         # this will be the address of a proxy with a geordi
         # it gets updated on PROXY_NICKS control msg
         self.geordi_location = None
@@ -24,7 +29,7 @@ class plugin:
         self.plugin_name = const.CPLUSPLUS_PLUGIN
 
         self.request = zmq_ctx.socket(zmq.SUB)
-        self.request.connect(const.PLUGIN_DISPATCH)
+        self.request.connect(plugin_dispatch)
         self.request.setsockopt(
             zmq.SUBSCRIBE, const.CPLUSPLUS_PLUGIN_NEW_REQUEST)
         self.request.setsockopt(
@@ -33,7 +38,7 @@ class plugin:
             zmq.SUBSCRIBE, const.CPLUSPLUS_PLUGIN_GEORDI_REPLY)
 
         self.push_reply = zmq_ctx.socket(zmq.PUSH)
-        self.push_reply.connect(const.BROKER_BACKEND_REPLIES)
+        self.push_reply.connect(command_dispatch_backend_replies)
 
         self.ioloop = zmq_ioloop
         self.ioloop.add_handler(

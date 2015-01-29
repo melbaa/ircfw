@@ -8,11 +8,21 @@ import ircfw.unparse
 
 class plugin:
 
-    def __init__(self, zmq_ioloop, zmq_ctx):
+    def __init__(
+            self,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx):
         self.generic_plugin = generic_plugin(
-            zmq_ioloop, zmq_ctx, __name__, const.HOSTINFO_PLUGIN, [
-                const.HOSTINFO_PLUGIN_NEW_REQUEST], self.on_request
-        )
+            __name__,
+            const.HOSTINFO_PLUGIN,
+            [const.HOSTINFO_PLUGIN_NEW_REQUEST],
+            self.on_request,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx)
         self.logger = self.generic_plugin.logger
 
     def on_request(self, sock, evts):

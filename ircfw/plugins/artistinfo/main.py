@@ -14,17 +14,24 @@ import ircfw.unparse
 
 class plugin():
 
-    def __init__(self, zmq_ioloop, zmq_ctx, api_key, api_secret):
+    def __init__(
+            self,
+            api_key,
+            api_secret,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx):
         self.logger = logging.getLogger(__name__)
         self.plugin_name = const.ARTISTINFO_PLUGIN
 
         self.request = zmq_ctx.socket(zmq.SUB)
-        self.request.connect(const.PLUGIN_DISPATCH)
+        self.request.connect(plugin_dispatch)
         self.request.setsockopt(
             zmq.SUBSCRIBE, const.ARTISTINFO_PLUGIN_NEW_REQUEST)
 
         self.push_reply = zmq_ctx.socket(zmq.PUSH)
-        self.push_reply.connect(const.BROKER_BACKEND_REPLIES)
+        self.push_reply.connect(command_dispatch_backend_replies)
 
         self.ioloop = zmq_ioloop
         self.ioloop.add_handler(

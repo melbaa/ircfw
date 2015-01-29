@@ -1050,14 +1050,4 @@ QUAKELIVE_PLUGIN = b'quakelive'
 QUAKELIVE_PLUGIN_TRIGGERS = ['ql', 'qlstats', 'quakelive']
 QUAKELIVE_PLUGIN_NEW_REQUEST = QUAKELIVE_PLUGIN + SUBTOPIC_SEP + b'new_request'
 
-"""
-inproc:// transports are not disconnected and also seem to be
-messsed up on windows
 
-those ports should really be randomly assigned, but then we'd need
-  an address book on the network
-"""
-BROKER_FRONTEND = "tcp://127.0.0.1:70005"
-BROKER_BACKEND_TOPICS = "tcp://127.0.0.1:70006"
-BROKER_BACKEND_REPLIES = "tcp://127.0.0.1:70007"
-PLUGIN_DISPATCH = 'tcp://127.0.0.1:70008'

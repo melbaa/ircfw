@@ -92,6 +92,7 @@ class proxy:
     def __init__(
             self,
             proxyname,
+            command_dispatch_frontend,
             should_see_nicks,
             host,
             port,
@@ -115,7 +116,7 @@ class proxy:
         self.ioloop = zmq_ioloop_instance
 
         self.dealer = zmq_ctx.socket(zmq.DEALER)
-        self.dealer.connect(const.BROKER_FRONTEND)
+        self.dealer.connect(command_dispatch_frontend)
         self.ioloop.add_handler(
             self.dealer, self.on_reply_from_bot, self.ioloop.READ)
 

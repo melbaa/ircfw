@@ -32,11 +32,22 @@ def make_string(arg):
 
 class plugin:
 
-    def __init__(self, zmq_ioloop, zmq_ctx, api_key):
+    def __init__(
+            self,
+            api_key,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx):
         self.generic_plugin = generic_plugin(
-            zmq_ioloop, zmq_ctx, __name__, const.DEFINE_PLUGIN, [
-                const.DEFINE_PLUGIN_NEW_REQUEST], self.on_request
-        )
+            __name__,
+            const.DEFINE_PLUGIN,
+            [const.DEFINE_PLUGIN_NEW_REQUEST],
+            self.on_request,
+            plugin_dispatch,
+            command_dispatch_backend_replies,
+            zmq_ioloop,
+            zmq_ctx)
         self.logger = self.generic_plugin.logger
         self.MERRIAM_THESAURUS_KEY = api_key
 

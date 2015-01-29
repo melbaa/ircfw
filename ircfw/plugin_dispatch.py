@@ -8,15 +8,20 @@ import ircfw.parse
 
 class plugin_dispatch:
 
-    def __init__(self, zmq_ioloop, zmq_ctx):
+    def __init__(
+            self,
+            command_dispatch_backend_topics,
+            plugin_dispatch,
+            zmq_ioloop,
+            zmq_ctx):
         self.irc_commands = zmq_ctx.socket(zmq.SUB)
-        self.irc_commands.connect(const.BROKER_BACKEND_TOPICS)
+        self.irc_commands.connect(command_dispatch_backend_topics)
         self.irc_commands.setsockopt(zmq.SUBSCRIBE, const.PING_TOPIC)
         self.irc_commands.setsockopt(zmq.SUBSCRIBE, const.PRIVMSG_TOPIC)
         self.irc_commands.setsockopt(zmq.SUBSCRIBE, const.PROXY_NICKS_TOPIC)
 
         self.plugin_dispatch = zmq_ctx.socket(zmq.PUB)
-        self.plugin_dispatch.bind(const.PLUGIN_DISPATCH)
+        self.plugin_dispatch.bind(plugin_dispatch)
 
         self.ioloop = zmq_ioloop
         self.ioloop.add_handler(
