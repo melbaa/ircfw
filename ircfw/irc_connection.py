@@ -111,7 +111,13 @@ class irc_protocol_handlers:
         yield b"WHO " + nick
 
     def on_rpl_whoreply(self, cmd_params):
-        if self.current_nick_pass()[0] == cmd_params[0]:
+        self.logger.info(
+            "352 rpl_whoreply nick_pass={} cmd_params={}".format(
+                str(self.current_nick_pass()), str(cmd_params)))
+                
+        fw_nick = self.current_nick_pass()[0].decode('utf8')
+        cmd_nick = cmd_params[0]
+        if fw_nick == cmd_nick:
             sub = 0
             sub += 1  # :
             sub += len(cmd_params[0])  # nick
