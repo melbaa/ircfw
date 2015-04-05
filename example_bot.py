@@ -30,6 +30,7 @@ import ircfw.plugins.re.main
 import ircfw.plugins.reverse.main
 import ircfw.plugins.sadict.main
 import ircfw.plugins.substitute.main
+import ircfw.plugins.weather.main
 import ircfw.proxy
 
 logging.basicConfig(level=logging.DEBUG)
@@ -121,6 +122,13 @@ class bot:
             ctx)
         define = ircfw.plugins.define.main.plugin(
             secrets['plugins']['define']['api_key'],
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        weather = ircfw.plugins.weather.main.plugin(
+            secrets['plugins']['weather']['client_id'],
+            secrets['plugins']['weather']['client_secret'],
             PLUGIN_DISPATCH,
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
