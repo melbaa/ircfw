@@ -3,7 +3,6 @@ import urllib.request
 import re
 
 
-import socket
 import urllib.request
 
 from ircfw.plugins.generic_plugin import generic_plugin

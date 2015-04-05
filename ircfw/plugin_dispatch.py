@@ -300,3 +300,23 @@ class plugin_dispatch:
                     self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of quakelive
+        
+        # weather
+        if topic == const.PRIVMSG_TOPIC:
+            curr_nick, bufsize, rawmsg = rest
+            curr_nick = curr_nick.decode('utf8')
+            sender, command, params, trailing = ircfw.parse.irc_message(msg)
+            trigger_args = ircfw.parse.potential_request(trailing, curr_nick)
+            if len(trigger_args):
+                trigger, args = ircfw.parse.get_word(trigger_args)
+                if trigger in const.WEATHER_PLUGIN_TRIGGERS:
+                    to_pub = [const.WEATHER_PLUGIN_NEW_REQUEST, 
+                        zmq_addr,
+                        proxy_name, 
+                        bufsize, 
+                        sender[0].encode('utf8'),
+                        params[0].encode('utf8'),
+                        args.encode('utf8')]
+                    self.plugin_dispatch.send_multipart(to_pub)
+                    self.logger.info('sent message, %s', to_pub)
+        # end of weather
