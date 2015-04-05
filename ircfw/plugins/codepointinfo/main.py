@@ -1,5 +1,5 @@
-import unicodedata
 import re
+import unicodedata
 
 
 import socket
@@ -82,8 +82,12 @@ def codepoint2utf8(rawcommand):  # chr
 def describe_codepoint(rawcommand):  # nchr
     if len(rawcommand):
         try:
-            result = unicodedata.name(rawcommand[0])
+            # try to combine diacritics like rings and accents
+            txt = unicodedata.normalize('NFC', rawcommand)
+            result = unicodedata.name(txt[0])
             result += '   -   U+' + str.upper(hex(ord(rawcommand[0]))[2:])
+            decomposition = unicodedata.decomposition(txt[0])
+            result += '   -   decomposition: ' + decomposition
             return result
         except ValueError as err:
             return str(err)
