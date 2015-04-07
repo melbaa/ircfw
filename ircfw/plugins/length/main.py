@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from ircfw.plugins.generic_plugin import generic_plugin
 import ircfw.constants as const
@@ -48,4 +49,6 @@ class plugin:
         return "length <txt>"
 
     def use(self, rawcommand):
-        return str(len(rawcommand))
+        plain = len(rawcommand)
+        nfc_normalized = len(unicodedata.normalize('NFC', rawcommand))
+        return 'plain: {} NFC normalized: {}'.format(plain, nfc_normalized)

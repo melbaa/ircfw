@@ -19,9 +19,9 @@ class AerisLookup:
         self.client_id = client_id
         self.client_secret = client_secret
         self.logger = logger
-        
+
     def lookup(self, city, state):
-        
+
         city = quote(city)
         state = quote(state)
         url = API_URL.format(city=city, state=state, client_id=self.client_id,
@@ -35,9 +35,9 @@ class AerisLookup:
         except Exception as err:
             self.logger.error(str(err))
             return ERROR_MSG
-            
+
     def _format_reply(self, json_resp):
-        
+
         success = '{temp}C {weather} Timezone: {tz} ICAO: {icao}'
         try:
             if json_resp['success']:
@@ -45,14 +45,14 @@ class AerisLookup:
                 tz = json_resp['response']['profile']['tz']
                 temp = json_resp['response']['ob']['tempC']
                 weather = json_resp['response']['ob']['weather']
-                return success.format(temp=temp, weather=weather, tz=tz, 
+                return success.format(temp=temp, weather=weather, tz=tz,
                     icao=icao)
             else:
                 return json_resp['error']['description']
         except Exception as err:
             self.logger.error(str(err))
             return ERROR_MSG
-        
+
 class plugin:
     def __init__(
             self,
@@ -71,10 +71,10 @@ class plugin:
             command_dispatch_backend_replies,
             zmq_ioloop,
             zmq_ctx)
-        
+
         self.logger = self.generic_plugin.logger
         self.api = AerisLookup(client_id, client_secret, self.logger)
-    
+
     def on_request(self, sock, evts):
         msg = sock.recv_multipart()
         self.logger.info('got msg %s', msg)
@@ -83,14 +83,14 @@ class plugin:
 
         args = argsbytes.decode('utf8')
         args.strip()
-        
-        try:    
+
+        try:
             city, state = args.split(', ')
             result = self.api.lookup(city, state)
-        
+
         except ValueError as err:
             result = 'the correct command is weather <city>, <state>'
-        
+
         replies = ircfw.unparse.make_privmsgs(
             senderbytes, paramsbytes, result.encode(
                 'utf8'), int(bufsize.decode('utf8')), 'truncate'

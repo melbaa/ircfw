@@ -54,40 +54,68 @@ class plugin:
         if len(args) == 0:
             return self.help()
         if trigger == "chr":
-            return codepoint2utf8(args)
+            return mychr(args)
         else:
-            return describe_codepoint(args)
+            return nchr(args)
 
+def nchr(rawcommand):
+    result = ''
+    cmd = rawcommand[:10] # prevent accidental wall of text
+    for c in cmd:
+        result += pretty_codepoint(ord(c)) + ' '
+    
+    result += '  -  ' +  describe_codepoint(cmd)
+    return result
 
-def codepoint2utf8(rawcommand):  # chr
+def mychr(rawcommand):  
     if len(rawcommand):
         rawcommand = re.sub(' ', '', rawcommand)
         rawcommand = re.sub('(?i)u\+', '', rawcommand)
         try:
             number = int(rawcommand, 16)
-            the_char = chr(number)
-            result = ''
-            if number < 0x1f:  # see ascii/unicode table
-                # control codes have no names anyway.
-                # only comments not accessible from unicodedata
-                result = "unprintable character"
-            else:
-                result = the_char
-            result += '  -  ' + describe_codepoint(the_char)
+            codepoint = chr(number)
+            
+            result = pretty_codepoint(number)
+            
+            result += '  -  ' + describe_codepoint(codepoint)
             return result
         except (ValueError, OverflowError) as err:
             return str(err)
 
-
-def describe_codepoint(rawcommand):  # nchr
+def pretty_codepoint(codepoint_num_val):
+    codepoint = chr(codepoint_num_val)
+    result = ''
+    if codepoint_num_val < 0x1f:  # see ascii/unicode table
+        # control codes have no names anyway.
+        # only comments not accessible from unicodedata
+        result = "unprintable character"
+    else:
+        result = codepoint
+    result += ' ' + unicodedata.name(codepoint)
+    result += ' ' + pretty_codepoint_num(codepoint_num_val)
+    return result
+    
+def pretty_codepoint_num(codepoint_num_val):
+    return 'U+' + str.upper(hex(codepoint_num_val)[2:])
+            
+def describe_codepoint(rawcommand): 
     if len(rawcommand):
         try:
             # try to combine diacritics like rings and accents
             txt = unicodedata.normalize('NFC', rawcommand)
-            result = unicodedata.name(txt[0])
-            result += '   -   U+' + str.upper(hex(ord(rawcommand[0]))[2:])
-            decomposition = unicodedata.decomposition(txt[0])
-            result += '   -   decomposition: ' + decomposition
+            result = 'NFC normalized: '
+            decomposition = ''
+            for c in txt:
+                result += c
+                result += ' '+ unicodedata.name(c)
+                result += ' ' + pretty_codepoint_num(ord(c))
+                result += ' '
+                
+                decomp = unicodedata.decomposition(c)
+                if len(decomp):
+                    decomposition += decomp + ' '
+            if len(decomposition):
+                result += 'decomposition: ' + decomposition
             return result
         except ValueError as err:
             return str(err)

@@ -5,6 +5,14 @@ import ircfw.constants as const
 import ircfw.unparse
 
 
+"""
+TODO broken - does not iterate graphemes, so returns wrong output
+for eg. Devanagari or other languages with composite characters.
+
+ICU has a grapheme iterator, but i don't want to pull deps
+"""
+
+
 class plugin:
 
     def __init__(
