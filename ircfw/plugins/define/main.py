@@ -1,4 +1,3 @@
-import json
 import urllib.parse
 import urllib.request
 
@@ -110,26 +109,3 @@ class plugin:
         if not len(result):
             result = 'no idea'
         return result
-
-    def use2(self, rawcommand):
-        """
-        duckduckgo api - currently broken?
-
-        """
-
-        # kp=-1 is !safeoff. removes safe search filter
-        quote_url = 'http://api.duckduckgo.com/?q=define+{}&kp=-1&format=json'
-
-        query = urllib.parse.quote_plus(rawcommand)
-        opener = urllib.request.build_opener()
-        opener.addheaders = [
-            ('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
-        b = opener.open(quote_url.format(query)).readall()
-        txt = b.decode('utf8')
-        json_obj = json.loads(txt)
-        answer = json_obj['Definition'] + ' ' + json_obj['AbstractText'] \
-            + ' ' + json_obj['DefinitionURL']
-
-        if not len(answer):
-            return 'no idea'
-        return answer

@@ -62,7 +62,7 @@ class plugin:
                     reply = rawcommand + " looks up from here."
                 elif r.find(b"It's not just you!") != -1:
                     reply = rawcommand + " looks down from here."
-                elif r.find(b"doesn't look like a site on the interwho."):
+                elif r.find(b"doesn't look like a site."):
                     reply = "is " + rawcommand + " even a website?"
                 else:
                     reply = "unexpected"
