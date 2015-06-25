@@ -92,6 +92,23 @@ class plugin_dispatch:
                     self.logger.info('sent message to artistinfo, %s', to_pub)
         # end of artistinfo
 
+        # start of help plugin
+        if topic == const.PRIVMSG_TOPIC:
+            curr_nick, bufsize, rawmsg = rest
+            msg = rawmsg.decode('utf8')
+            sender, command, params, trailing = ircfw.parse.irc_message(msg)
+            trigger_with_args = ircfw.parse \
+                .potential_request(trailing, curr_nick.decode('utf8'))
+            if len(trigger_with_args):
+                trigger, args = ircfw.parse.get_word(trigger_with_args)
+                if trigger in const.HELP_PLUGIN_TRIGGERS:
+                    to_pub = [const.HELP_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
+                              ]
+                    self.plugin_dispatch.send_multipart(to_pub)
+                    self.logger.info('sent message to help, %s', to_pub)
+            
+        # end of help plugin
+        
         # start of hostinfo
         if topic == const.PRIVMSG_TOPIC:
             curr_nick, bufsize, rawmsg = rest

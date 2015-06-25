@@ -304,7 +304,6 @@ class irc_connection:
             self.logger.info('had nothing to write')
             return 0
 
-        # self.mysendall(self._send_queue)
         self.logger.info('trying to send: ' + str(self._send_queue))
         c = 0
         if isinstance(self.irc_socket, ssl.SSLSocket):
@@ -315,7 +314,6 @@ class irc_connection:
         self.logger.info('sent: ' + str(self._send_queue[:c]))
         self._send_queue = self._send_queue[c:]
         self.logger.info('remaining: ' + str(self._send_queue))
-        # time.sleep(3)
         remaining = len(self._send_queue)
         return remaining
 

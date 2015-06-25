@@ -20,6 +20,7 @@ import ircfw.plugins.codepointinfo.main
 import ircfw.plugins.cplusplus.main
 import ircfw.plugins.define.main
 import ircfw.plugins.googlism.main
+import ircfw.plugins.help.main
 import ircfw.plugins.hostinfo.main
 import ircfw.plugins.length.main
 import ircfw.plugins.phobia.main
@@ -134,6 +135,11 @@ class bot:
             self.ioloop,
             ctx)
         cplusplus = ircfw.plugins.cplusplus.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        hlp = ircfw.plugins.help.main.plugin(
             PLUGIN_DISPATCH,
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
