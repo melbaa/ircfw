@@ -1,6 +1,3 @@
-import re
-import unicodedata
-
 from ircfw.plugins.generic_plugin import generic_plugin
 import ircfw.constants as const
 import ircfw.unparse
