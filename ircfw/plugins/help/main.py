@@ -1,3 +1,5 @@
+import random
+
 from ircfw.plugins.generic_plugin import generic_plugin
 import ircfw.constants as const
 import ircfw.unparse
@@ -30,7 +32,15 @@ class plugin:
 
         args = argsbytes.decode('utf8')
         args.strip()
-        result = 'bad system call (core dumped)'
+        
+        replies = [
+            'bad system call (core dumped)', 
+            'Aborted (core dumped)',
+            'unrecognized option "help"',
+            'there was a problem with your request',
+        ]
+        
+        result = random.choice(replies)
         replies = ircfw.unparse.make_privmsgs(
             senderbytes, paramsbytes, result.encode(
                 'utf8'), int(bufsize.decode('utf8')), 'multiline'
