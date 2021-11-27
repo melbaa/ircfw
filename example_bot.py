@@ -94,6 +94,10 @@ class bot:
         proxies = []
         for servername in secrets['servers']:
             data = secrets['servers'][servername]
+            if data.get('disabled'):
+                logging.info('skipping disabled server %s', servername)
+                continue
+
             proxy = ircfw.proxy.proxy(
                 proxyname=servername,
                 command_dispatch_frontend=COMMAND_DISPATCH_FRONTEND,

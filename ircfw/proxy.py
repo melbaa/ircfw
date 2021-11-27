@@ -127,7 +127,7 @@ class proxy:
             """
             advertise nicks on this proxy that SHOULD be available.
             some plugins depend on those nicks. such a timeout is a temporary
-            solution; it will probabyl become a bug at some point when
+            solution; it will probably become a bug at some point when
             a slow joiner happens. TODO FIXME
 
             we don't pass the proxy directly to the plugin, because we want

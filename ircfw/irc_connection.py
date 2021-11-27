@@ -26,7 +26,7 @@ class irc_protocol_handlers:
         """
         self._current_nick = 0
         self.irc_password = utf8(irc_password)  # for irc PASS msg
-        self.channels = [utf8(channel) for channel in channels]
+        self.channels = channels
         """
         the max num of bytes for a command is 512, including
         the \r\n at the end, thus 510 for command and params only.
@@ -114,7 +114,7 @@ class irc_protocol_handlers:
         self.logger.info(
             "352 rpl_whoreply nick_pass={} cmd_params={}".format(
                 str(self.current_nick_pass()), str(cmd_params)))
-                
+
         fw_nick = self.current_nick_pass()[0].decode('utf8')
         cmd_nick = cmd_params[0]
         if fw_nick == cmd_nick:
@@ -175,7 +175,11 @@ class irc_protocol_handlers:
         yield from self.try_nick()
 
     def join_chan(self, channel):
-        yield b"JOIN" + b" " + channel
+        if isinstance(channel, list):
+            channel, pwd = channel
+            yield b"JOIN" + b" " + utf8(channel) + b" " + utf8(pwd)
+        else:
+            yield b"JOIN" + b" " + utf8(channel)
 
 
 class irc_connection:
