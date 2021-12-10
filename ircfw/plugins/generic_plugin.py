@@ -3,9 +3,6 @@ import logging
 
 import zmq
 
-import ircfw.constants as const
-
-
 class generic_plugin:
 
     """
@@ -22,7 +19,6 @@ class generic_plugin:
             logger_name,
             plugin_name,  # eg const.ARTISTINFO_PLUGIN
             subscribe_topics,  # list
-            on_msg_callback,
             plugin_dispatch,
             command_dispatch_backend_replies,
             zmq_ioloop,
@@ -40,12 +36,13 @@ class generic_plugin:
         self.push_reply.connect(command_dispatch_backend_replies)
 
         self.ioloop = zmq_ioloop
-        self.ioloop.add_handler(
-            self.request, on_msg_callback, self.ioloop.READ)
 
-    def send_replies(self, replies, zmq_addr, proxy_name):
+    async def send_replies(self, replies, zmq_addr, proxy_name):
         self.logger.info('about to send replies %s', replies)
         for reply in replies:
             reply = [zmq_addr, proxy_name, self.plugin_name, reply]
-            self.push_reply.send_multipart(reply)
+            await self.push_reply.send_multipart(reply)
         self.logger.info('sent!')
+
+    async def read_request(self):
+        return await self.request.recv_multipart()

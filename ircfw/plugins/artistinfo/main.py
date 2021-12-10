@@ -34,8 +34,6 @@ class plugin():
         self.push_reply.connect(command_dispatch_backend_replies)
 
         self.ioloop = zmq_ioloop
-        self.ioloop.add_handler(
-            self.request, self.on_request, self.ioloop.READ)
 
         self.api_key = api_key
         self.secret = api_secret
@@ -45,42 +43,43 @@ class plugin():
             + "&api_key=" + self.api_key \
             + "&autocorrect=1"
 
-    def on_request(self, sock, evts):
-        req = self.request.recv_multipart()
-        topic, zmq_addr, proxy_name, bufsize, rawmsg = req
-        msg = rawmsg.decode('utf8')
-        if topic == const.ARTISTINFO_PLUGIN_NEW_REQUEST:
-            sender, command, params, trailing = ircfw.parse.irc_message(msg)
-            nick, trailing = ircfw.parse.get_word(trailing)
-            cmd, artist = ircfw.parse.get_word(trailing)
-            artist = artist.strip()
-            result = None
-            if not len(artist):
-                result = 'tell me an artist first'
-            else:
-                try:
-                    artist_quoted = urllib.parse.quote_plus(artist)
-                    request = self.reqstr.format(artist=artist_quoted)
-                    print(request)
-                    data = urllib.request.urlopen(request).read()
-                    root = lxml.etree.fromstring(data)
-                    tags = str(
-                        [elem.text for elem in root.xpath('artist/tags/tag/name')])
-                    result = artist + " - " + tags
-                except urllib.error.HTTPError as err:
-                    result = str(err)
+    async def main(self):
+        while True:
+            req = await self.request.recv_multipart()
+            topic, zmq_addr, proxy_name, bufsize, rawmsg = req
+            msg = rawmsg.decode('utf8')
+            if topic == const.ARTISTINFO_PLUGIN_NEW_REQUEST:
+                sender, command, params, trailing = ircfw.parse.irc_message(msg)
+                nick, trailing = ircfw.parse.get_word(trailing)
+                cmd, artist = ircfw.parse.get_word(trailing)
+                artist = artist.strip()
+                result = None
+                if not len(artist):
+                    result = 'tell me an artist first'
+                else:
+                    try:
+                        artist_quoted = urllib.parse.quote_plus(artist)
+                        request = self.reqstr.format(artist=artist_quoted)
+                        print(request)
+                        data = urllib.request.urlopen(request).read()
+                        root = lxml.etree.fromstring(data)
+                        tags = str(
+                            [elem.text for elem in root.xpath('artist/tags/tag/name')])
+                        result = artist + " - " + tags
+                    except urllib.error.HTTPError as err:
+                        result = str(err)
 
-            replies = ircfw.unparse.make_privmsgs(
-                sender[0].encode('utf8'),
-                params[0].encode('utf8'),
-                result.encode('utf8'),
-                int(bufsize.decode('utf8')),
-                'multiline')
-            self._send_replies(replies, zmq_addr, proxy_name)
+                replies = ircfw.unparse.make_privmsgs(
+                    sender[0].encode('utf8'),
+                    params[0].encode('utf8'),
+                    result.encode('utf8'),
+                    int(bufsize.decode('utf8')),
+                    'multiline')
+                await self._send_replies(replies, zmq_addr, proxy_name)
 
-    def _send_replies(self, replies, zmq_addr, proxy_name):
+    async def _send_replies(self, replies, zmq_addr, proxy_name):
         self.logger.info('about to send replies %s', replies)
         for reply in replies:
             reply = [zmq_addr, proxy_name, self.plugin_name, reply]
-            self.push_reply.send_multipart(reply)
+            await self.push_reply.send_multipart(reply)
         self.logger.info('sent!')

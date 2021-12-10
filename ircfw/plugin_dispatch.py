@@ -24,12 +24,10 @@ class plugin_dispatch:
         self.plugin_dispatch.bind(plugin_dispatch)
 
         self.ioloop = zmq_ioloop
-        self.ioloop.add_handler(
-            self.irc_commands, self.read_and_dispatch, self.ioloop.READ)
         self.logger = logging.getLogger(__name__)
 
-    def read_and_dispatch(self, sock, evts):
-        msg = self.irc_commands.recv_multipart()
+    async def read_and_dispatch(self):
+        msg = await self.irc_commands.recv_multipart()
         self.logger.info("received %s", msg)
         #topic, zmq_addr, proxy_name, curr_nick, rawmsg = msg
         topic, zmq_addr, proxy_name, *rest = msg
@@ -52,7 +50,7 @@ class plugin_dispatch:
                         'forwarding message from geordi %s', rawmsg)
                     to_pub = [const.CPLUSPLUS_PLUGIN_GEORDI_REPLY, zmq_addr, proxy_name, bufsize, rawmsg
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to c++, %s', to_pub)
 
                 # nothing else to do
@@ -63,14 +61,14 @@ class plugin_dispatch:
                               #(nick) and where (nick/chan) and the request (args)
                               , rawmsg
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to c++, %s', to_pub)
 
         elif topic == const.PROXY_NICKS_TOPIC:
             rawcmd, rawcmdargs = rest
             to_pub = [const.CPLUSPLUS_PLUGIN_PROXY_NICKS, zmq_addr, proxy_name, topic, rawcmd, rawcmdargs
                       ]
-            self.plugin_dispatch.send_multipart(to_pub)
+            await self.plugin_dispatch.send_multipart(to_pub)
             self.logger.info('sent message to c++, %s', to_pub)
         # end of C++ PLUGIN
 
@@ -88,7 +86,7 @@ class plugin_dispatch:
                               #(nick) and where (nick/chan) and the request (args)
                               , rawmsg
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to artistinfo, %s', to_pub)
         # end of artistinfo
 
@@ -104,11 +102,11 @@ class plugin_dispatch:
                 if trigger in const.HELP_PLUGIN_TRIGGERS:
                     to_pub = [const.HELP_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to help, %s', to_pub)
-            
+
         # end of help plugin
-        
+
         # start of hostinfo
         if topic == const.PRIVMSG_TOPIC:
             curr_nick, bufsize, rawmsg = rest
@@ -121,7 +119,7 @@ class plugin_dispatch:
                 if trigger in const.HOSTINFO_PLUGIN_TRIGGERS:
                     to_pub = [const.HOSTINFO_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to hostinfo, %s', to_pub)
         # end of hostinfo
 
@@ -137,7 +135,7 @@ class plugin_dispatch:
                 if trigger in const.PHOBIAS_PLUGIN_TRIGGERS:
                     to_pub = [const.PHOBIAS_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of phobias
 
@@ -153,7 +151,7 @@ class plugin_dispatch:
                 if trigger in const.SADICT_PLUGIN_TRIGGERS:
                     to_pub = [const.SADICT_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of sadict
 
@@ -169,7 +167,7 @@ class plugin_dispatch:
                 if trigger in const.RE_PLUGIN_TRIGGERS:
                     to_pub = [const.RE_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of re
 
@@ -186,7 +184,7 @@ class plugin_dispatch:
                     to_pub = [const.CODEPOINTINFO_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), trigger.encode('utf8')  # notice trigger sent
                               , args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of codepointinfo
 
@@ -202,7 +200,7 @@ class plugin_dispatch:
                 if trigger in const.LENGTH_PLUGIN_TRIGGERS:
                     to_pub = [const.LENGTH_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of length
 
@@ -218,7 +216,7 @@ class plugin_dispatch:
                 if trigger in const.PRIVMSG_PING_PLUGIN_TRIGGERS:
                     to_pub = [const.PRIVMSG_PING_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of privmsg ping
 
@@ -234,7 +232,7 @@ class plugin_dispatch:
                 if trigger in const.REVERSE_PLUGIN_TRIGGERS:
                     to_pub = [const.REVERSE_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of reverse
 
@@ -250,7 +248,7 @@ class plugin_dispatch:
                 if trigger in const.PICK_PLUGIN_TRIGGERS:
                     to_pub = [const.PICK_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of pick
 
@@ -266,7 +264,7 @@ class plugin_dispatch:
                 if trigger in const.SUBSTITUTE_PLUGIN_TRIGGERS:
                     to_pub = [const.SUBSTITUTE_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of pick
 
@@ -282,7 +280,7 @@ class plugin_dispatch:
                 if trigger in const.DEFINE_PLUGIN_TRIGGERS:
                     to_pub = [const.DEFINE_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of define
 
@@ -298,26 +296,10 @@ class plugin_dispatch:
                 if trigger in const.GOOGLISM_PLUGIN_TRIGGERS:
                     to_pub = [const.GOOGLISM_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), trigger.encode('utf8'), args.encode('utf8')
                               ]
-                    self.plugin_dispatch.send_multipart(to_pub)
+                    await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of googlism
 
-        # start of quakelive
-        if topic == const.PRIVMSG_TOPIC:
-            curr_nick, bufsize, rawmsg = rest
-            msg = rawmsg.decode('utf8')
-            sender, command, params, trailing = ircfw.parse.irc_message(msg)
-            trigger_with_args = ircfw.parse \
-                .potential_request(trailing, curr_nick.decode('utf8'))
-            if len(trigger_with_args):
-                trigger, args = ircfw.parse.get_word(trigger_with_args)
-                if trigger in const.QUAKELIVE_PLUGIN_TRIGGERS:
-                    to_pub = [const.QUAKELIVE_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize, sender[0].encode('utf8'), params[0].encode('utf8'), trigger.encode('utf8'), args.encode('utf8')
-                              ]
-                    self.plugin_dispatch.send_multipart(to_pub)
-                    self.logger.info('sent message, %s', to_pub)
-        # end of quakelive
-        
         # weather
         if topic == const.PRIVMSG_TOPIC:
             curr_nick, bufsize, rawmsg = rest
@@ -327,13 +309,37 @@ class plugin_dispatch:
             if len(trigger_args):
                 trigger, args = ircfw.parse.get_word(trigger_args)
                 if trigger in const.WEATHER_PLUGIN_TRIGGERS:
-                    to_pub = [const.WEATHER_PLUGIN_NEW_REQUEST, 
+                    to_pub = [const.WEATHER_PLUGIN_NEW_REQUEST,
                         zmq_addr,
-                        proxy_name, 
-                        bufsize, 
+                        proxy_name,
+                        bufsize,
                         sender[0].encode('utf8'),
                         params[0].encode('utf8'),
                         args.encode('utf8')]
                     self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message, %s', to_pub)
         # end of weather
+
+        # youtube
+        if topic == const.PRIVMSG_TOPIC:
+            curr_nick, bufsize, rawmsg = rest
+            curr_nick = curr_nick.decode('utf8')
+            sender, command, params, trailing = ircfw.parse.irc_message(msg)
+            trigger_args = ircfw.parse.potential_request(trailing, curr_nick)
+            if len(trigger_args):
+                trigger, args = ircfw.parse.get_word(trigger_args)
+                if trigger in const.YOUTUBE_PLUGIN_TRIGGERS:
+                    to_pub = [const.YOUTUBE_PLUGIN_NEW_REQUEST,
+                        zmq_addr,
+                        proxy_name,
+                        bufsize,
+                        sender[0].encode('utf8'),
+                        params[0].encode('utf8'),
+                        args.encode('utf8')]
+                    await self.plugin_dispatch.send_multipart(to_pub)
+                    self.logger.info('sent message, %s', to_pub)
+        # end of youtube
+
+    async def main(self):
+        while True:
+            await self.read_and_dispatch()

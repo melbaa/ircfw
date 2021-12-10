@@ -5,8 +5,10 @@ import traceback
 import weakref
 import ssl
 
+import asyncio
+
 import zmq
-import zmq.eventloop
+import zmq.asyncio
 
 import ircfw.constants as const
 import ircfw.globals
@@ -26,7 +28,7 @@ class irc_heartbeat:
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__)
         self.timer = None
-        self.TTL = datetime.timedelta(minutes=4)  # time before timeout
+        self.TTL = 2 * 60  # sec. time before timeout
         """
         pointer to parent? is it bad? how to break the circular ref. here
         need it for reconnect, sending a reply
@@ -50,11 +52,11 @@ class irc_heartbeat:
 
     def reset_timeout(self):
         self.stop_timeout()
-        self.timer = self.ioloop.add_timeout(self.TTL, self.on_timeout)
+        self.timer = self.ioloop.call_later(self.TTL, self.on_timeout)
 
     def stop_timeout(self):
         if self.timer:
-            self.ioloop.remove_timeout(self.timer)
+            self.timer.cancel()
             self.timer = None
 
     def on_anymsg(self):
@@ -92,6 +94,10 @@ class irc_heartbeat:
 
 
 class proxy:
+    """
+    relays between the public irc network and the private zmq-based bot network
+    """
+
     def __init__(
             self,
             proxyname,
@@ -103,7 +109,7 @@ class proxy:
             nicks,
             irc_password,
             channels,
-            zmq_ioloop_instance,
+            ioloop,
             zmq_ctx):
         """
         proxyname - string - for debugging
@@ -113,15 +119,13 @@ class proxy:
 
         """
         self.proxyname = proxyname.encode('utf8')
+        self.ioloop = ioloop
 
         self.logger = logging.getLogger(__name__)
 
-        self.ioloop = zmq_ioloop_instance
-
         self.dealer = zmq_ctx.socket(zmq.DEALER)
         self.dealer.connect(command_dispatch_frontend)
-        self.ioloop.add_handler(
-            self.dealer, self.on_reply_from_bot, self.ioloop.READ)
+
 
         if len(should_see_nicks):
             """
@@ -156,12 +160,11 @@ class proxy:
             self.ioloop,
             self)
         self.irc_connection = None
-        self.reconnect()
 
-    def reconnect(self):
+
+    async def reconnect(self):
 
         if self.irc_connection:
-            self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
             self.irc_connection = None
 
         self.irc_heartbeat.on_reconnect_start()
@@ -174,28 +177,53 @@ class proxy:
                 self.nicks,
                 self.irc_password,
                 self.channels)
+            await self.irc_connection.connect()
 
-            self.install_handler()
             self.irc_heartbeat.on_reconnect_success()
 
         except RuntimeError:
-            self.logger.debug("wtf happens", exc_info=True)
+            self.logger.debug("wtf", exc_info=True)
+            """
             delayedcb = zmq.eventloop.ioloop.DelayedCallback(
                 self.reconnect,  # loop; try again
                 10000,  # 10 sec
                 self.ioloop)
             delayedcb.start()
+            """
         except Exception:
             self.logger.error(traceback.format_exc())
 
     def irc_connection_ready(self, fd, evts):
 
-        def on_read(self):
-            """
-            read from irc_connection and write to zmq dealer.
-            the message sent is multipart and has the following frames:
-            """
+        try:
+            pass
+
+        except ssl.SSLWantReadError:
+            self.logger.info('SSLWantReadError')
+        except socket.error:
+            self.logger.error(traceback.format_exc())
+            self.ioloop.add_callback(self.reconnect)
+        except Exception:
+            self.logger.error(traceback.format_exc())
+
+
+    def queue_binary_reply(self, msg):
+        self.irc_connection.queue_binary_reply(msg)
+
+
+
+
+
+    async def irc2bot(self):
+        """
+        read from irc_connection and write to zmq dealer.
+        the message sent is multipart and has the following frames:
+        """
+
+        while True:
+            self.logger.info('irc2bot start iter')
             raw_messages = self.irc_connection.read()
+
 
             """
             FIXME currently this is a race with irc_connection.read(),
@@ -203,7 +231,8 @@ class proxy:
             fix would be read() to attach a current nick to each msg
             """
             nick = self.irc_connection.current_nick()
-            for rawmsg in raw_messages:
+
+            async for rawmsg in raw_messages:
                 self.logger.info(rawmsg)
 
                 """
@@ -225,66 +254,45 @@ class proxy:
                 self.logger.info('about to send %s', to_send)
 
                 try:
-                    self.dealer.send_multipart(to_send, zmq.NOBLOCK)
+                    await self.dealer.send_multipart(to_send, zmq.NOBLOCK)
                     self.logger.info('sent!')
                 except Exception as e:
                     self.logger.error(e.args, e.errno, e.strerror)
 
-        def on_write(self):
-            more = self.irc_connection.write()
-            self.logger.info('wrote reply to irc_connection.irc_socket')
 
-        try:
+    async def bot2irc(self):
+        """
+        send prepared data to irc
+        """
+        while True:
+            self.logger.info('bot2irc start iter')
+            await self.irc_connection.wait_pending_write()
 
             self.irc_heartbeat.on_anymsg()
 
-            if evts & self.ioloop.READ:
-                on_read(self)
-            if evts & self.ioloop.WRITE:
-                on_write(self)
-            if evts & self.ioloop.ERROR:
-                raise RuntimeError("oops. socket returned error")
+            while self.irc_connection.pending_write():
+                await self.irc_connection.write()
 
-            self.install_handler()
-
-        except ssl.SSLWantReadError:
-            self.logger.info('SSLWantReadError')
-            self.install_handler()
-        except socket.error:
-            self.logger.error(traceback.format_exc())
-            self.ioloop.add_callback(self.reconnect)
-        except Exception:
-            self.logger.error(traceback.format_exc())
-
-    def on_reply_from_bot(self, sock, evts):
+    async def drain_backend(self):
         """
-        read a reply from the irc bot and pass it to irc
+        read a reply from the backend and prepare it for sending
         """
-        rep = self.dealer.recv_multipart()
-        self.logger.info('received reply from backend %s', rep)
-        proxy_name, plugin_name, msg = rep
+        while True:
+            self.logger.info('drain_backend start iter')
+            rep = await self.dealer.recv_multipart()
+            self.logger.info('received reply from backend %s', rep)
+            proxy_name, plugin_name, msg = rep
 
-        self.queue_binary_reply(msg)
+            self.queue_binary_reply(msg)
 
-    def queue_binary_reply(self, msg):
-        self.irc_connection.queue_binary_reply(msg)
-        self.install_handler()
 
-    def install_handler(self):
-        # self.ioloop.remove_handler(self.irc_connection.irc_socket.fileno())
-        what = self.ioloop.READ
-        if self.irc_connection.pending_write():
-            what = what | self.ioloop.WRITE
 
-        self.ioloop.add_handler(
-            self.irc_connection.irc_socket.fileno(),
-            self.irc_connection_ready,
-            what)
-        logmsg = 'installed irc_socket handler for '
-        if what & self.ioloop.READ:
-            logmsg += 'READ '
-        if what & self.ioloop.WRITE:
-            logmsg += 'WRITE '
-        if what & self.ioloop.ERROR:
-            logmsg += 'ERROR '
-        self.logger.info(logmsg)
+
+
+    async def main(self):
+        while True:
+            await self.reconnect()
+            await asyncio.wait([self.irc2bot(), self.bot2irc(), self.drain_backend()])
+
+
+

@@ -4,6 +4,8 @@ import ssl
 import traceback
 import random
 
+import asyncio
+
 import ircfw.constants as const
 import ircfw.parse
 import ircfw.unparse
@@ -11,6 +13,9 @@ import ircfw.unparse
 
 def utf8(txt):
     return txt.encode('utf8', errors='strict')
+
+def decodeutf8(rawbytes):
+    return rawbytes.decode('utf8')
 
 
 class irc_protocol_handlers:
@@ -51,8 +56,11 @@ class irc_protocol_handlers:
         """
         line = rawline.decode('utf8', 'ignore')
         sender, command, params, trailing = ircfw.parse.irc_message(line)
+
+        # verbose log
         # logmsg = 'parsed <sender> {} <command> {} <params> {} <trailing> {}'
         # self.logger.debug(logmsg.format(sender, command, params, trailing))
+
         command_bin = command.encode('utf8')
         if command_bin == const.RPL_WELCOME:
             yield from self.on_rpl_welcome()
@@ -115,7 +123,7 @@ class irc_protocol_handlers:
             "352 rpl_whoreply nick_pass={} cmd_params={}".format(
                 str(self.current_nick_pass()), str(cmd_params)))
 
-        fw_nick = self.current_nick_pass()[0].decode('utf8')
+        fw_nick = decodeutf8(self.current_nick_pass()[0])
         cmd_nick = cmd_params[0]
         if fw_nick == cmd_nick:
             sub = 0
@@ -134,8 +142,9 @@ class irc_protocol_handlers:
     def on_notice(self, sender, params, trailing):
         if len(sender) >= 2 \
                 and sender[0] == "NickServ" \
-                and params[0] == self.current_nick_pass()[0] \
-                and trailing.find('You are now identified for') != -1:
+                and params[0] == decodeutf8(self.current_nick_pass()[0]) \
+                and (trailing.find('You are now identified for') != -1
+                    or trailing.find('you are now recognized') != -1):
                 # join channels
             for chan in self.channels:
                 yield from self.join_chan(chan)
@@ -230,10 +239,7 @@ class irc_connection:
         self.irc_port = port
         self.use_ssl = use_ssl
 
-        self.irc_socket = self.create_socket(
-            self.irc_host, self.irc_port, self.use_ssl)
-
-        self.irc_socket.setblocking(0)
+        self.reader, self.writer = None, None
 
         """
         the irc_socket gives us incomplete irc messages so we queue them
@@ -245,6 +251,7 @@ class irc_connection:
         we queue the pending bytes here
         """
         self._send_queue = bytearray()
+        self._send_queue_flag = asyncio.Event()
 
         self.irc_handlers = irc_protocol_handlers(
             nicks, irc_password, channels)
@@ -256,7 +263,15 @@ class irc_connection:
         for msg in irc_msgs:
             self.queue_binary_reply(msg)
 
-    def read(self):
+    async def connect(self):
+        self.reader, self.writer = await asyncio.open_connection(
+            host=self.irc_host,
+            port=self.irc_port,
+            ssl=self.use_ssl,
+        )
+
+
+    async def read(self):
         """
         read some data from irc_connection._recv_queue or
         irc_connection.irc_socket and
@@ -272,12 +287,7 @@ class irc_connection:
                 newlinesz -= 1
             return newlinesz, foundpos
 
-        more = None
-
-        if isinstance(self.irc_socket, ssl.SSLSocket):
-            more = self.irc_socket.read(self.RECVSIZE)
-        else:
-            more = self.irc_socket.recv(self.RECVSIZE)
+        more = await self.reader.read(self.RECVSIZE)
 
         if len(more):
             self._recv_queue += more
@@ -298,63 +308,24 @@ class irc_connection:
             yield newline
             newlinesz, foundpos = find_end_line(self._recv_queue)
 
-    def write(self):
+    async def write(self):
         """
         return
         0 - nothing more to write
         number > 0 - num bytes remaining to write
         """
         if len(self._send_queue) == 0:
-            self.logger.info('had nothing to write')
-            return 0
+            self.logger.info('nothing to write')
+            return
 
         self.logger.info('trying to send: ' + str(self._send_queue))
-        c = 0
-        if isinstance(self.irc_socket, ssl.SSLSocket):
-            c = self.irc_socket.write(self._send_queue)
-        else:
-            c = self.irc_socket.send(self._send_queue)
 
-        self.logger.info('sent: ' + str(self._send_queue[:c]))
-        self._send_queue = self._send_queue[c:]
-        self.logger.info('remaining: ' + str(self._send_queue))
-        remaining = len(self._send_queue)
-        return remaining
+        self.writer.write(self._send_queue)
+        await self.writer.drain()
 
-    def create_socket(self, host, port, ssl_conn, timeout=None):
-        msg = "getaddrinfo returns an empty list"
-        try:
-            for res in socket.getaddrinfo(
-                    host, port, socket.AF_INET, socket.SOCK_STREAM):
-                af, socktype, proto, canonname, sa = res
-                sock = None
-                try:
-                    sock = socket.socket(af, socktype, proto)
-                    if ssl_conn:
-                        sock = ssl.wrap_socket(
-                            sock,
-                            suppress_ragged_eofs=True,
-                            do_handshake_on_connect=True)
-                    if timeout is not None:
-                        sock.settimeout(
-                            timeout)  # raises SSLError with ssl sockets :(
-                    sock.connect(sa)
-                    return sock
-                except (socket.error, ssl.SSLError):
-                    self.logger.info(traceback.format_exc())
-                    if sock is not None:
-                        sock.close()
-                    """
-                    sometimes we get unexpected eof (8)
-                    #http://tools.ietf.org/html/rfc2246#section-7.2.1
-                    it's because of unproper shutdown
-                    """
-        except socket.gaierror:
-            self.logger.info(traceback.format_exc())
-        raise RuntimeError("couldn't connect :(")
+        self.logger.info('sent: ' + str(self._send_queue))
+        self._send_queue = bytearray()
 
-    def fileno(self):
-        return self.irc_socket.fileno()
 
     def bufsize(self):
         return self.irc_handlers.BUFSIZE
@@ -383,6 +354,16 @@ class irc_connection:
             raise RuntimeError(r"don't add \r\n yourself, i'll do it")
         self._send_queue += binmsg
         self._send_queue += b'\r\n'
+
+        self.logger.info('setting send_queue_flag')
+        self._send_queue_flag.set()  # notify waiter there's data
+
+    async def wait_pending_write(self):
+        self.logger.info('waiting on send_queue_flag')
+        await self._send_queue_flag.wait()
+
+        self.logger.info('clearing send_queue_flag')
+        self._send_queue_flag.clear()  # waiter knows there's data
 
     def pending_write(self):
         return len(self._send_queue) != 0

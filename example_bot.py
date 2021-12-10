@@ -6,9 +6,18 @@ import logging
 import sys
 import types
 
+# https://hynek.me/articles/waiting-in-asyncio/
+# https://www.roguelynn.com/words/asyncio-we-did-it-wrong/
+# https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+import asyncio
+
 # third party
 import zmq
-import zmq.eventloop
+import zmq.asyncio
+# import zmq.eventloop
+# import tornado.ioloop
+
+
 
 # local
 import ircfw.irc_command_dispatch
@@ -26,15 +35,15 @@ import ircfw.plugins.length.main
 import ircfw.plugins.phobia.main
 import ircfw.plugins.pick.main
 import ircfw.plugins.privmsg_ping.main
-import ircfw.plugins.quakelive.main
+import ircfw.plugins.youtube.main
 import ircfw.plugins.re.main
 import ircfw.plugins.reverse.main
-import ircfw.plugins.sadict.main
 import ircfw.plugins.substitute.main
 import ircfw.plugins.weather.main
 import ircfw.proxy
 
 logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
 """
 inproc:// transports are not disconnected and also seem to be
@@ -65,11 +74,19 @@ class bot:
         with open(conf_file) as f:
             secrets = json.loads(f.read())
 
-        ctx = zmq.Context()
-        self.ioloop = zmq.eventloop.ioloop.IOLoop.instance()
+        # zmq uses add_reader and add_writer low level methods, which proactor loop doesn't have
+        asyncio.set_event_loop_policy(
+            asyncio.WindowsSelectorEventLoopPolicy()  # pylint: disable=no-member
+        )
+        ctx = zmq.asyncio.Context()
 
         # loop should throw instead of swallowing exceptions
         # see  http://zeromq.github.com/pyzmq/api/generated/zmq.eventloop.ioloop.html#zmq.eventloop.ioloop.IOLoop.handle_callback_exception # NOQA
+
+
+        # in the modern world, no such callback anymore
+        """
+
         old_handle_callback_exception = self.ioloop.handle_callback_exception
 
         def handle_callback_exception(self, callback):
@@ -84,14 +101,33 @@ class bot:
         method = types.MethodType(handle_callback_exception, self.ioloop)
         self.ioloop.handle_callback_exception = method
 
+
+        """
+
+        def handle_exception(loop, context):
+            # context["message"] will always be there; but context["exception"] may not
+            msg = context.get("exception", context["message"])
+            logging.error(f"Caught exception: {msg}")
+            raise RuntimeError('crash and burn')
+
+        # but asyncio has a global exception handler
+        self.ioloop = asyncio.new_event_loop()
+        self.ioloop.set_exception_handler(handle_exception)
+
+        # also enable debug mode
+        self.ioloop.set_debug(True)
+
+        # gather all independently runnable components
+        self.components = []
+
         main_broker = ircfw.irc_command_dispatch.irc_command_dispatch(
             COMMAND_DISPATCH_FRONTEND,
             COMMAND_DISPATCH_BACKEND_TOPICS,
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
             ctx)
+        self.components.append(main_broker)
 
-        proxies = []
         for servername in secrets['servers']:
             data = secrets['servers'][servername]
             if data.get('disabled'):
@@ -108,15 +144,16 @@ class bot:
                 nicks=data['nicks'],
                 irc_password=data['irc_password'],
                 channels=data['channels'],
-                zmq_ioloop_instance=self.ioloop,
+                ioloop=self.ioloop,
                 zmq_ctx=ctx)
-            proxies.append(proxy)
+            self.components.append(proxy)
 
         plugin_dispatch = ircfw.plugin_dispatch.plugin_dispatch(
             COMMAND_DISPATCH_BACKEND_TOPICS,
             PLUGIN_DISPATCH,
             self.ioloop,
             ctx)
+        self.components.append(plugin_dispatch)
 
         artistinfo = ircfw.plugins.artistinfo.main.plugin(
             secrets['plugins']['artistinfo']['api_key'],
@@ -125,8 +162,88 @@ class bot:
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
             ctx)
+        self.components.append(artistinfo)
         define = ircfw.plugins.define.main.plugin(
             secrets['plugins']['define']['api_key'],
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(define)
+        hlp = ircfw.plugins.help.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(hlp)
+        hostinfo = ircfw.plugins.hostinfo.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(hostinfo)
+        phobias = ircfw.plugins.phobia.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(phobias)
+        re = ircfw.plugins.re.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(re)
+        codepointinfo = ircfw.plugins.codepointinfo.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(codepointinfo)
+        length = ircfw.plugins.length.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(length)
+        privmsg_ping = ircfw.plugins.privmsg_ping.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(privmsg_ping)
+        reverse = ircfw.plugins.reverse.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(reverse)
+        pick = ircfw.plugins.pick.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(pick)
+        substitute = ircfw.plugins.substitute.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(substitute)
+        googlism = ircfw.plugins.googlism.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(googlism)
+        youtube = ircfw.plugins.youtube.main.plugin(
+            PLUGIN_DISPATCH,
+            COMMAND_DISPATCH_BACKEND_REPLIES,
+            self.ioloop,
+            ctx)
+        self.components.append(youtube)
+        """
+        cplusplus = ircfw.plugins.cplusplus.main.plugin(
             PLUGIN_DISPATCH,
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
@@ -138,79 +255,14 @@ class bot:
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
             ctx)
-        cplusplus = ircfw.plugins.cplusplus.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        hlp = ircfw.plugins.help.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        hostinfo = ircfw.plugins.hostinfo.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        phobias = ircfw.plugins.phobia.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        sadict = ircfw.plugins.sadict.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        re = ircfw.plugins.re.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        codepointinfo = ircfw.plugins.codepointinfo.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        length = ircfw.plugins.length.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        privmsg_ping = ircfw.plugins.privmsg_ping.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        reverse = ircfw.plugins.reverse.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        pick = ircfw.plugins.pick.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        substitute = ircfw.plugins.substitute.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        googlism = ircfw.plugins.googlism.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        quakelive = ircfw.plugins.quakelive.main.plugin(
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
+        """
 
-    def run(self):
-        self.ioloop.start()
+    async def run(self):
+        tasks = []
+        for component in self.components:
+            task = asyncio.create_task(component.main())
+            tasks.append(task)
+        await asyncio.wait(tasks)
 
     def run_once(self):
         raise NotImplementedError
@@ -221,7 +273,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('CONFIGPATH', type=str, help='path to secrets.json')
     args = parser.parse_args()
-    bot(args.CONFIGPATH).run()
+    asyncio.run(bot(args.CONFIGPATH).run())
+
+    #self.ioloop.run_forever()
+
+    # asyncio.run(asyncio.gather(*proxies))
 
 
 if __name__ == '__main__':

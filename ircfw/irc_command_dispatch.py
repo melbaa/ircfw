@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 import zmq
 
@@ -23,15 +24,12 @@ class irc_command_dispatch:
             command_dispatch_frontend,
             command_dispatch_backend_topics,
             command_dispatch_backend_replies,
-            zmq_ioloop_instance,
+            ioloop,
             zmq_ctx):
 
-        self.ioloop = zmq_ioloop_instance
-
+        self.ioloop = ioloop
         self.router = zmq_ctx.socket(zmq.ROUTER)
         self.router.bind(command_dispatch_frontend)
-        self.ioloop.add_handler(
-            self.router, self.read_request, self.ioloop.READ)
         """
         going to publish parsed incoming msgs by topic
         """
@@ -43,50 +41,56 @@ class irc_command_dispatch:
         """
         self.pull_replies = zmq_ctx.socket(zmq.PULL)
         self.pull_replies.bind(command_dispatch_backend_replies)
-        self.ioloop.add_handler(
-            self.pull_replies, self.read_reply, self.ioloop.READ)
-
         self.logger = logging.getLogger(__name__)
 
-    def read_request(self, socket, evts):
-        logmsg = self.router.recv_multipart()
-        self.logger.info("received message %s", logmsg)
+    async def read_request(self):
+        while True:
+            logmsg = await self.router.recv_multipart()
+            self.logger.info("received message %s", logmsg)
 
-        # zmq_addr, msgtype, proxy_name, curr_nick, rawmsg = logmsg
-        # http://www.python.org/dev/peps/pep-3132/
-        zmq_addr, msgtype, proxy_name, *rest = logmsg
-        if msgtype == const.IRC_MSG:
-            curr_nick, bufsize, rawmsg = rest
-            msg = rawmsg.decode('utf8', 'ignore')
-            sender, command, params, trailing = ircfw.parse.irc_message(msg)
-            msg_to_pub = [
-                const.IRC_MSG + const.SUBTOPIC_SEP + command.encode('utf8'),
-                zmq_addr,
-                proxy_name,
-                curr_nick,
-                bufsize,
-                rawmsg]
-            self.publisher.send_multipart(msg_to_pub)
-            self.logger.info("sent %s", msg_to_pub)
-        elif msgtype == const.CONTROL_MSG:
-            rawcmd, rawcmdargs = rest
-            to_send = [
-                const.CONTROL_MSG + const.SUBTOPIC_SEP + rawcmd,
-                zmq_addr,
-                proxy_name,
-                rawcmd,
-                rawcmdargs]
-            self.publisher.send_multipart(to_send)
-            self.logger.info("sent %s", to_send)
-        else:
-            self.logger.warn(
-                'unknown message type %s for msg %s', msgtype, logmsg)
-            raise RuntimeError('unknown message type bro')
+            # zmq_addr, msgtype, proxy_name, curr_nick, rawmsg = logmsg
+            # http://www.python.org/dev/peps/pep-3132/
+            zmq_addr, msgtype, proxy_name, *rest = logmsg
+            if msgtype == const.IRC_MSG:
+                curr_nick, bufsize, rawmsg = rest
+                msg = rawmsg.decode('utf8', 'ignore')
+                sender, command, params, trailing = ircfw.parse.irc_message(msg)
+                msg_to_pub = [
+                    const.IRC_MSG + const.SUBTOPIC_SEP + command.encode('utf8'),
+                    zmq_addr,
+                    proxy_name,
+                    curr_nick,
+                    bufsize,
+                    rawmsg]
+                await self.publisher.send_multipart(msg_to_pub)
+                self.logger.info("sent %s", msg_to_pub)
+            elif msgtype == const.CONTROL_MSG:
+                rawcmd, rawcmdargs = rest
+                to_send = [
+                    const.CONTROL_MSG + const.SUBTOPIC_SEP + rawcmd,
+                    zmq_addr,
+                    proxy_name,
+                    rawcmd,
+                    rawcmdargs]
+                await self.publisher.send_multipart(to_send)
+                self.logger.info("sent %s", to_send)
+            else:
+                self.logger.warn(
+                    'unknown message type %s for msg %s', msgtype, logmsg)
+                raise RuntimeError('unknown message type bro')
 
-    def read_reply(self, sock, evts):
-        rep = self.pull_replies.recv_multipart()
-        self.logger.info('received reply %s', rep)
-        addr, proxy_name, from_plugin, msg = rep
-        to_send = [addr, proxy_name, from_plugin, msg]
-        self.logger.info('sending to proxy %s', to_send)
-        self.router.send_multipart(to_send)
+    async def read_reply(self):
+        while True:
+            rep = await self.pull_replies.recv_multipart()
+            self.logger.info('received reply %s', rep)
+            addr, proxy_name, from_plugin, msg = rep
+            to_send = [addr, proxy_name, from_plugin, msg]
+            self.logger.info('sending to proxy %s', to_send)
+            await self.router.send_multipart(to_send)
+
+    async def main(self):
+        await asyncio.wait([self.read_reply(), self.read_request()])
+
+
+
+

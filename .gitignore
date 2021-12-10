@@ -49,3 +49,4 @@ secrets.json.production
 secrets*
 lul
 docs/
+venv/

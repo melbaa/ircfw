@@ -24,33 +24,33 @@ class plugin:
             __name__,
             const.GOOGLISM_PLUGIN,
             [const.GOOGLISM_PLUGIN_NEW_REQUEST],
-            self.on_request,
             plugin_dispatch,
             command_dispatch_backend_replies,
             zmq_ioloop,
             zmq_ctx)
         self.logger = self.generic_plugin.logger
 
-    def on_request(self, sock, evts):
-        msg = sock.recv_multipart()
-        self.logger.info('got msg %s', msg)
-        topic, zmq_addr, proxy_name, bufsize \
-            , senderbytes, paramsbytes, triggerbytes, argsbytes = msg
+    async def main(self):
+        while True:
+            msg = await self.generic_plugin.read_request()
+            self.logger.info('got msg %s', msg)
+            topic, zmq_addr, proxy_name, bufsize \
+                , senderbytes, paramsbytes, triggerbytes, argsbytes = msg
 
-        args = argsbytes.decode('utf8')
-        trigger = triggerbytes.decode('utf8')
-        args.strip()
-        result = None
-        if not args:
-            result = self.help()
-        else:
-            result = self.use(trigger, args)
-        replies = ircfw.unparse.make_privmsgs(
-            senderbytes, paramsbytes, result.encode(
-                'utf8'), int(bufsize.decode('utf8')), 'truncate'
-        )
+            args = argsbytes.decode('utf8')
+            trigger = triggerbytes.decode('utf8')
+            args.strip()
+            result = None
+            if not args:
+                result = self.help()
+            else:
+                result = self.use(trigger, args)
+            replies = ircfw.unparse.make_privmsgs(
+                senderbytes, paramsbytes, result.encode(
+                    'utf8'), int(bufsize.decode('utf8')), 'truncate'
+            )
 
-        self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
+            await self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
 
     def help(self):
         return "what|who|when|where is|are <something>"
@@ -69,12 +69,12 @@ class plugin:
             searchterm = re.sub(r'\s+', ' ', searchterm)
             if not len(searchterm):
                 return self.help()
-            return googlism_impl(searchterm, trigger)
+            return impl(searchterm, trigger)
         else:
             return self.help()
 
 
-def googlism_impl(searchterm, searchtype):
+def impl(searchterm, searchtype):
     opts = dict()
     for i, word in enumerate(["who", "what", "where", "when"]):
         opts[word] = i + 1  # api takes types from 1 to 4
@@ -85,7 +85,7 @@ def googlism_impl(searchterm, searchtype):
     req = urllib.request.urlopen("http://www.googlism.com/search/",
                                  data=data.encode('utf-8'),
                                  timeout=5)
-    reply = req.readall().decode('utf-8', 'ignore')
+    reply = req.read().decode('utf-8', 'ignore')
     root = lxml.html.fromstring(reply)
     defs = root.xpath('/html/body/div/div[4]/br')
     defs = defs[1:-1]  # ignore first and last elems
