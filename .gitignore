@@ -46,7 +46,7 @@ target/
 
 secrets.json
 secrets.json.production
-secrets*
+*secrets*
 lul
 docs/
 venv/

@@ -9,6 +9,10 @@ import types
 # https://hynek.me/articles/waiting-in-asyncio/
 # https://www.roguelynn.com/words/asyncio-we-did-it-wrong/
 # https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+# TIP: always await tasks created with create_task (or use add_done_callback) or you'll silently lose exceptions
+# https://quantlane.com/blog/ensure-asyncio-task-exceptions-get-logged/
+# call task.result() in the callbacks
+# TIP: avoid starting random background tasks. always have a parent that knows and waits for the tasks it started
 import asyncio
 
 # third party
@@ -39,10 +43,14 @@ import ircfw.plugins.youtube.main
 import ircfw.plugins.re.main
 import ircfw.plugins.reverse.main
 import ircfw.plugins.substitute.main
-import ircfw.plugins.weather.main
 import ircfw.proxy
+import ircfw.util
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    format = '▸ %(asctime)s.%(msecs)03d %(filename)s:%(lineno)d %(levelname)s %(message)s',
+    level = logging.DEBUG,
+    datefmt = '%H:%M:%S',
+)
 logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
 """
@@ -69,53 +77,16 @@ PLUGIN_DISPATCH = 'tcp://127.0.0.1:70008'
 
 class bot:
 
-    def __init__(self, conf_file):
+    def __init__(self, conf_file, ioloop):
 
         with open(conf_file) as f:
             secrets = json.loads(f.read())
 
-        # zmq uses add_reader and add_writer low level methods, which proactor loop doesn't have
-        asyncio.set_event_loop_policy(
-            asyncio.WindowsSelectorEventLoopPolicy()  # pylint: disable=no-member
-        )
         ctx = zmq.asyncio.Context()
 
-        # loop should throw instead of swallowing exceptions
-        # see  http://zeromq.github.com/pyzmq/api/generated/zmq.eventloop.ioloop.html#zmq.eventloop.ioloop.IOLoop.handle_callback_exception # NOQA
+        self.ioloop = ioloop
+        self.logger = logging.getLogger(__name__)
 
-
-        # in the modern world, no such callback anymore
-        """
-
-        old_handle_callback_exception = self.ioloop.handle_callback_exception
-
-        def handle_callback_exception(self, callback):
-            old_handle_callback_exception(callback)
-            raise sys.exc_info()[1]
-
-        # this replaces a method of the ioloop instance. why not derive?
-        # TODO FIXME when different instances (probably in separate processes)
-        #  will need a decent derived class for ioloop
-        # TODO FIXME this doesn't even touch exceptions in add_handler
-        #  callbacks which the loop still swallows
-        method = types.MethodType(handle_callback_exception, self.ioloop)
-        self.ioloop.handle_callback_exception = method
-
-
-        """
-
-        def handle_exception(loop, context):
-            # context["message"] will always be there; but context["exception"] may not
-            msg = context.get("exception", context["message"])
-            logging.error(f"Caught exception: {msg}")
-            raise RuntimeError('crash and burn')
-
-        # but asyncio has a global exception handler
-        self.ioloop = asyncio.new_event_loop()
-        self.ioloop.set_exception_handler(handle_exception)
-
-        # also enable debug mode
-        self.ioloop.set_debug(True)
 
         # gather all independently runnable components
         self.components = []
@@ -242,27 +213,25 @@ class bot:
             self.ioloop,
             ctx)
         self.components.append(youtube)
-        """
         cplusplus = ircfw.plugins.cplusplus.main.plugin(
             PLUGIN_DISPATCH,
             COMMAND_DISPATCH_BACKEND_REPLIES,
             self.ioloop,
             ctx)
-        weather = ircfw.plugins.weather.main.plugin(
-            secrets['plugins']['weather']['client_id'],
-            secrets['plugins']['weather']['client_secret'],
-            PLUGIN_DISPATCH,
-            COMMAND_DISPATCH_BACKEND_REPLIES,
-            self.ioloop,
-            ctx)
-        """
+        self.components.append(cplusplus)
 
     async def run(self):
         tasks = []
         for component in self.components:
-            task = asyncio.create_task(component.main())
+            task = asyncio.create_task(component.main())  # potentially util.create_task
             tasks.append(task)
-        await asyncio.wait(tasks)
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        self.logger.error('YOU MESSED UP')
+        import pdb;pdb.set_trace()
+        pass
+
+
+
 
     def run_once(self):
         raise NotImplementedError
@@ -273,11 +242,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('CONFIGPATH', type=str, help='path to secrets.json')
     args = parser.parse_args()
-    asyncio.run(bot(args.CONFIGPATH).run())
 
-    #self.ioloop.run_forever()
-
-    # asyncio.run(asyncio.gather(*proxies))
+    ioloop = ircfw.util.create_loop()
+    ioloop.run_until_complete(bot(args.CONFIGPATH, ioloop).run())
 
 
 if __name__ == '__main__':

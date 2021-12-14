@@ -48,8 +48,7 @@ class plugin_dispatch:
                     # it must be a reply then
                     self.logger.info(
                         'forwarding message from geordi %s', rawmsg)
-                    to_pub = [const.CPLUSPLUS_PLUGIN_GEORDI_REPLY, zmq_addr, proxy_name, bufsize, rawmsg
-                              ]
+                    to_pub = [const.CPLUSPLUS_PLUGIN_GEORDI_REPLY, zmq_addr, proxy_name, bufsize, rawmsg ]
                     await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to c++, %s', to_pub)
 
@@ -57,10 +56,9 @@ class plugin_dispatch:
             else:  # plugin trigger with new request
                 trigger, args = ircfw.parse.get_word(trigger_with_args)
                 if trigger in const.CPLUSPLUS_PLUGIN_TRIGGERS:
-                    to_pub = [const.CPLUSPLUS_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize                              # send unparsed msg because we need to know who to reply to
-                              #(nick) and where (nick/chan) and the request (args)
-                              , rawmsg
-                              ]
+                    # send unparsed msg because we need to know who to reply to
+                    #(nick) and where (nick/chan) and the request (args)
+                    to_pub = [const.CPLUSPLUS_PLUGIN_NEW_REQUEST, zmq_addr, proxy_name, bufsize , rawmsg ]
                     await self.plugin_dispatch.send_multipart(to_pub)
                     self.logger.info('sent message to c++, %s', to_pub)
 
@@ -69,7 +67,7 @@ class plugin_dispatch:
             to_pub = [const.CPLUSPLUS_PLUGIN_PROXY_NICKS, zmq_addr, proxy_name, topic, rawcmd, rawcmdargs
                       ]
             await self.plugin_dispatch.send_multipart(to_pub)
-            self.logger.info('sent message to c++, %s', to_pub)
+            self.logger.info('sent message to c++ plugin, %s', to_pub)
         # end of C++ PLUGIN
 
         # start of ARTISTINFO

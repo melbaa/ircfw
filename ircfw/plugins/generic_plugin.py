@@ -31,6 +31,7 @@ class generic_plugin:
 
         for topic in subscribe_topics:
             self.request.setsockopt(zmq.SUBSCRIBE, topic)
+            self.logger.info('subscribed to topic ' + str(topic))
 
         self.push_reply = zmq_ctx.socket(zmq.PUSH)
         self.push_reply.connect(command_dispatch_backend_replies)

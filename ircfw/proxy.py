@@ -13,6 +13,7 @@ import zmq.asyncio
 import ircfw.constants as const
 import ircfw.globals
 import ircfw.irc_connection
+import ircfw.util
 
 
 class irc_heartbeat:
@@ -66,18 +67,16 @@ class irc_heartbeat:
         self.timeout_count += 1
         if self.timeout_count == 1:
             # send a ping somehow
-            self.logger.info('trying to ping')
-            self._proxy.queue_binary_reply(b'PING :helloworld')
+            self.logger.info('trying to ping via heartbeat')
+            self._proxy.queue_binary_reply(b'PING :heartbeat %d' % self.timeout_count)
         elif self.timeout_count == 2:
             # reconnect somehow
-            self.logger.info('trying to reconnect')
+            self.logger.info('trying to reconnect via heartbeat')
+            # TODO probably make the heartbeat a separate coro and maybe crash main() from it?
+            import pdb;pdb.set_trace()
             self._proxy.reconnect()
-        """
-        what happens if we cancel an exired timeout?
-        from the tornado and minitornado ioloops source, it seems like we
-        shouldn't
-        """
-        self.timer = None
+
+        # self.timer = None
         self.reset_timeout()
 
     def on_reconnect_start(self):
@@ -126,29 +125,8 @@ class proxy:
         self.dealer = zmq_ctx.socket(zmq.DEALER)
         self.dealer.connect(command_dispatch_frontend)
 
+        self.should_see_nicks = should_see_nicks
 
-        if len(should_see_nicks):
-            """
-            advertise nicks on this proxy that SHOULD be available.
-            some plugins depend on those nicks. such a timeout is a temporary
-            solution; it will probably become a bug at some point when
-            a slow joiner happens. TODO FIXME
-
-            we don't pass the proxy directly to the plugin, because we want
-            the zmq address of the proxy to reach the plugin
-
-            a possible fix is to spam this message until the plugin acks it.
-            requires bidirectional communication and complexity.
-            """
-            nicksbytes = [nick.encode('utf8') for nick in should_see_nicks]
-            nicksbytes = b' '.join(nicksbytes)
-            delayedcb = zmq.eventloop.ioloop.DelayedCallback(
-                lambda: self.dealer.send_multipart(
-                    [const.CONTROL_MSG,
-                        self.proxyname, const.PROXY_NICKS, nicksbytes]),
-                5000,
-                self.ioloop)
-            delayedcb.start()
 
         self.host = host
         self.port = port
@@ -164,6 +142,8 @@ class proxy:
 
     async def reconnect(self):
 
+        self.logger.info('trying to reconnect')
+
         if self.irc_connection:
             self.irc_connection = None
 
@@ -178,6 +158,23 @@ class proxy:
                 self.irc_password,
                 self.channels)
             await self.irc_connection.connect()
+
+
+            """
+            advertise nicks on this proxy that SHOULD be available.
+            some plugins depend on those nicks. such a timeout is a temporary
+            solution; it will probably become a bug at some point when
+            a slow joiner happens. TODO FIXME
+
+            we don't pass the proxy directly to the plugin, because we want
+            the zmq address of the proxy to reach the plugin
+
+            a possible fix is to spam this message until the plugin acks it.
+            requires bidirectional communication and complexity.
+            """
+            def cb():
+                ircfw.util.create_task(self.broadcast_nicks(), logger=self.logger, message='delayed broadcast nicks')
+            self.delayedcb = self.ioloop.call_later(5, cb)
 
             self.irc_heartbeat.on_reconnect_success()
 
@@ -211,7 +208,20 @@ class proxy:
         self.irc_connection.queue_binary_reply(msg)
 
 
+    async def broadcast_nicks(self):
+        if not len(self.should_see_nicks):
+            # nothing to broadcast
+            return
 
+        nicksbytes = [nick.encode('utf8') for nick in self.should_see_nicks]
+        nicksbytes = b' '.join(nicksbytes)
+
+        await self.dealer.send_multipart(
+            [const.CONTROL_MSG,
+            self.proxyname, const.PROXY_NICKS, nicksbytes])
+
+            # msgtype, proxy_name,      rawcmd,      rawcmdargs = rest
+            # CONTROL_MSG, proxyname,   PROXY_NICKS, nicks
 
 
     async def irc2bot(self):
@@ -263,6 +273,7 @@ class proxy:
     async def bot2irc(self):
         """
         send prepared data to irc
+
         """
         while True:
             self.logger.info('bot2irc start iter')
@@ -272,6 +283,7 @@ class proxy:
 
             while self.irc_connection.pending_write():
                 await self.irc_connection.write()
+                # TODO maybe sleep a bit here for basic ratelimiting
 
     async def drain_backend(self):
         """
@@ -291,8 +303,22 @@ class proxy:
 
     async def main(self):
         while True:
-            await self.reconnect()
-            await asyncio.wait([self.irc2bot(), self.bot2irc(), self.drain_backend()])
+            try:
+                await self.reconnect()
+                irc2bot = ircfw.util.create_task(self.irc2bot(), logger=self.logger, message='irc2bot')
+                bot2irc = ircfw.util.create_task(self.bot2irc(), logger=self.logger, message='bot2irc')
+                drain_backend = ircfw.util.create_task(self.drain_backend(), logger=self.logger, message='drain_backend')
+                aws = [irc2bot, bot2irc, drain_backend]
+                done, pending = await asyncio.wait(aws, return_when=asyncio.FIRST_EXCEPTION)
+                for task in done:
+                    task.result()
+            except (ConnectionResetError, OSError) as e:
+                self.logger.exception(e)
+                await asyncio.sleep(20)  # don't get banned for reconnecting too often
+            except Exception as e:
+                self.logger.error('you messed up')
+                import pdb;pdb.set_trace()
+                pass
 
 
 

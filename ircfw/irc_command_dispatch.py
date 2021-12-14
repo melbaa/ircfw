@@ -89,7 +89,10 @@ class irc_command_dispatch:
             await self.router.send_multipart(to_send)
 
     async def main(self):
-        await asyncio.wait([self.read_reply(), self.read_request()])
+        done, pending = await asyncio.wait([self.read_reply(), self.read_request()], return_when=asyncio.ALL_COMPLETED)
+        self.logger.error('you messed up')
+        import pdb;pdb.set_trace()
+        pass
 
 
 

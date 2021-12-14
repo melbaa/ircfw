@@ -66,7 +66,6 @@ class plugin:
             __name__,
             const.WEATHER_PLUGIN,
             [const.WEATHER_PLUGIN_NEW_REQUEST],
-            self.on_request,
             plugin_dispatch,
             command_dispatch_backend_replies,
             zmq_ioloop,
@@ -75,25 +74,28 @@ class plugin:
         self.logger = self.generic_plugin.logger
         self.api = AerisLookup(client_id, client_secret, self.logger)
 
-    def on_request(self, sock, evts):
-        msg = sock.recv_multipart()
-        self.logger.info('got msg %s', msg)
-        topic, zmq_addr, proxy_name, bufsize \
-            , senderbytes, paramsbytes, argsbytes = msg
+    async def main(self):
+        while True:
+            msg = await self.generic_plugin.read_request
+            self.logger.info('got msg %s', msg)
+            topic, zmq_addr, proxy_name, bufsize \
+                , senderbytes, paramsbytes, argsbytes = msg
 
-        args = argsbytes.decode('utf8')
-        args.strip()
+            args = argsbytes.decode('utf8')
+            args.strip()
 
-        try:
-            city, state = args.split(', ')
-            result = self.api.lookup(city, state)
+            try:
+                city, state = args.split(', ')
+                result = self.api.lookup(city, state)
 
-        except ValueError as err:
-            result = 'the correct command is weather <city>, <state>'
+            except ValueError as err:
+                result = 'the correct command is weather <city>, <state>'
 
-        replies = ircfw.unparse.make_privmsgs(
-            senderbytes, paramsbytes, result.encode(
-                'utf8'), int(bufsize.decode('utf8')), 'truncate'
-        )
+            replies = ircfw.unparse.make_privmsgs(
+                senderbytes, paramsbytes, result.encode(
+                    'utf8'), int(bufsize.decode('utf8')), 'truncate'
+            )
 
-        self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
+            await self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
+
+
