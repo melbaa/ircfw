@@ -98,6 +98,7 @@ class irc_protocol_handlers:
             suffix.append(random.choice(alnums))
             firstnick = self.nicks[0][0]
             randnick = firstnick + b'_' + suffix
+            self.nicks.append((randnick, b''))  # note tuple
             return randnick, b''
         raise RuntimeError("why are you here?")
 

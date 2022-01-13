@@ -1,7 +1,6 @@
 import urllib.parse
 import urllib.request
-
-import lxml.etree as ET
+import json
 
 from ircfw.plugins.generic_plugin import generic_plugin
 import ircfw.constants as const
@@ -13,16 +12,14 @@ could use wikionary, supports phrases
 
 
 """
-http://www.dictionaryapi.com/api/v1/references/thesaurus/xml/microscopic?key=???
-http://www.dictionaryapi.com/content/products/documentation/thesaurus-tag-description.txt
-
-
+https://dictionaryapi.com/products/api-collegiate-thesaurus
+https://dictionaryapi.com/products/json#sec-2.hwi
 
 """
 
 
-REQUEST_URL = 'http://www.dictionaryapi.com/api/v1/references/thesaurus/xml/{}?key={}'
-XML_PARSER = ET.XMLParser(encoding='utf8')
+REQUEST_URL = 'https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{}?key={}'
+
 
 
 def make_string(arg):
@@ -62,7 +59,7 @@ class plugin:
             if not args:
                 result = 'give me a word or phrase'
             else:
-                result = self.use(args)
+                result = impl(args, self.MERRIAM_THESAURUS_KEY, self.logger)
             replies = ircfw.unparse.make_privmsgs(
                 senderbytes,
                 paramsbytes,
@@ -70,42 +67,72 @@ class plugin:
                 int(bufsize.decode('utf8')),
                 'multiline')
 
+            # limit output lines for excess flood
+            replies = list(replies)[:4]
+
             await self.generic_plugin.send_replies(replies, zmq_addr, proxy_name)
 
-    def use(self, rawcommand):
-        quoted_words = urllib.parse.quote_plus(rawcommand)
-        req_url = REQUEST_URL.format(quoted_words, self.MERRIAM_THESAURUS_KEY)
+def get_word_list(dt, list_name, pretty_name):
+    # the dt structure might not have the list_name list
+    output = ''
 
-        xml_rep = urllib.request.urlopen(req_url).read()
-        root = ET.fromstring(xml_rep)
+    if not list_name in dt:
+        return output
 
-        suggestions = root.xpath('suggestion/text()')
-        if len(suggestions):
-            return 'suggestions - {}'.format(make_string(suggestions))
+    words = []
+    for ls in dt[list_name]:
+        for word in ls:
+            words.append(word['wd'])
 
-        description = '{word} ({speech_part}) --- {meanings}; synonyms - {synonyms}; \
-  related words - {related_words}; near antonyms - {near}; antonyms - {antonyms}.'
+    if words:
+        output = '; {pretty_name} - {txt}'.format(pretty_name=pretty_name, txt=make_string(words))
+    return output
 
-        entries = []
-        for entry in root.getchildren():
-            data_dict = {
-                # , 'meaning_core' : entry.xpath('sens/mc/text()')
-                'word': entry.xpath('term/hw/text()'),
-                'speech_part': entry.xpath('fl/text()'),
-                'meanings': entry.xpath('sens/*[self::mc or self::vi]//text()'),
-                'synonyms': entry.xpath('sens/syn//text()'),
-                'related_words': entry.xpath('sens/rel//text()'),
-                'near': entry.xpath('sens/near//text()'),
-                'antonyms': entry.xpath('sens/ant//text()')
-            }
+def parse_definition(words):
+    output = ''
+    for word in words:
+        speech_part = word['fl']
+        output += ' {id} ({speech_part})'.format(speech_part=speech_part, id=word['meta']['id'])
+        for definition in word['def']:
+            for sense in definition['sseq']:
+                for subsense in sense:
+                    dt = subsense[1]
+                    definition_text = dt['dt'][0][1]
+                    output += '; def - ' + definition_text
 
-            for key in data_dict:
-                data = make_string(data_dict[key])
-                data_dict[key] = data
+                    output += get_word_list(dt, 'syn_list', 'synonyms')
+                    output += get_word_list(dt, 'ant_list', 'antonyms')
+                    output += get_word_list(dt, 'near_list', 'near antonyms')
+                    output += get_word_list(dt, 'rel_list', 'related words')
+    return output
 
-            entries.append(description.format(**data_dict))
 
-        result = ' '.join(entries)
-        if not len(result):
-            result = 'no idea'
-        return result
+
+
+def impl(rawcommand, api_key, logger):
+    quoted_words = urllib.parse.quote_plus(rawcommand)
+    req_url = REQUEST_URL.format(quoted_words, api_key)
+
+    resp = urllib.request.urlopen(req_url)
+    words = json.loads(resp.read().decode('utf8'))
+
+    if not words:
+        return 'no idea'
+
+
+    try:
+        output = parse_definition(words)
+        return output
+    except Exception as e:
+        logger.exception(e)
+
+    try:
+        output = make_string(words) or 'no idea'
+        return output
+    except Exception as e:
+        logger.exception(e)
+        import pdb;pdb.set_trace()
+        pass
+
+
+

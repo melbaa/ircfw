@@ -149,59 +149,33 @@ class proxy:
 
         self.irc_heartbeat.on_reconnect_start()
 
-        try:
-            self.irc_connection = ircfw.irc_connection.irc_connection(
-                self.host,
-                self.port,
-                self.use_ssl,
-                self.nicks,
-                self.irc_password,
-                self.channels)
-            await self.irc_connection.connect()
+        self.irc_connection = ircfw.irc_connection.irc_connection(
+            self.host,
+            self.port,
+            self.use_ssl,
+            self.nicks,
+            self.irc_password,
+            self.channels)
+        await self.irc_connection.connect()
 
 
-            """
-            advertise nicks on this proxy that SHOULD be available.
-            some plugins depend on those nicks. such a timeout is a temporary
-            solution; it will probably become a bug at some point when
-            a slow joiner happens. TODO FIXME
+        """
+        advertise nicks on this proxy that SHOULD be available.
+        some plugins depend on those nicks. such a timeout is a temporary
+        solution; it will probably become a bug at some point when
+        a slow joiner happens. TODO FIXME
 
-            we don't pass the proxy directly to the plugin, because we want
-            the zmq address of the proxy to reach the plugin
+        we don't pass the proxy directly to the plugin, because we want
+        the zmq address of the proxy to reach the plugin
 
-            a possible fix is to spam this message until the plugin acks it.
-            requires bidirectional communication and complexity.
-            """
-            def cb():
-                ircfw.util.create_task(self.broadcast_nicks(), logger=self.logger, message='delayed broadcast nicks')
-            self.delayedcb = self.ioloop.call_later(5, cb)
+        a possible fix is to spam this message until the plugin acks it.
+        requires bidirectional communication and complexity.
+        """
+        def cb():
+            ircfw.util.create_task(self.broadcast_nicks(), logger=self.logger, message='delayed broadcast nicks')
+        self.delayedcb = self.ioloop.call_later(5, cb)
 
-            self.irc_heartbeat.on_reconnect_success()
-
-        except RuntimeError:
-            self.logger.debug("wtf", exc_info=True)
-            """
-            delayedcb = zmq.eventloop.ioloop.DelayedCallback(
-                self.reconnect,  # loop; try again
-                10000,  # 10 sec
-                self.ioloop)
-            delayedcb.start()
-            """
-        except Exception:
-            self.logger.error(traceback.format_exc())
-
-    def irc_connection_ready(self, fd, evts):
-
-        try:
-            pass
-
-        except ssl.SSLWantReadError:
-            self.logger.info('SSLWantReadError')
-        except socket.error:
-            self.logger.error(traceback.format_exc())
-            self.ioloop.add_callback(self.reconnect)
-        except Exception:
-            self.logger.error(traceback.format_exc())
+        self.irc_heartbeat.on_reconnect_success()
 
 
     def queue_binary_reply(self, msg):
@@ -263,11 +237,8 @@ class proxy:
                     rawmsg]
                 self.logger.info('about to send %s', to_send)
 
-                try:
-                    await self.dealer.send_multipart(to_send, zmq.NOBLOCK)
-                    self.logger.info('sent!')
-                except Exception as e:
-                    self.logger.error(e.args, e.errno, e.strerror)
+                await self.dealer.send_multipart(to_send, zmq.NOBLOCK)
+                self.logger.info('sent!')
 
 
     async def bot2irc(self):
